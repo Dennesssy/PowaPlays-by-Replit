@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>POWAPLAY by Replit</title>
+  <meta name="description" content="A decentralized PWA marketplace. Discover, showcase, and install web apps built on Replit.">
+  <meta name="theme-color" content="#0a0a0f">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚡</text></svg>">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body class="dark">
+  <header id="app-header">
+    <div class="header-left">
+      <a href="/" class="logo" data-link>
+        <span class="logo-icon">P</span>
+        <span class="logo-text">POWAPLAY</span>
+      </a>
+    </div>
+    <nav class="header-nav">
+      <a href="/" class="nav-link active" data-link>Discover</a>
+      <a href="/feedback" class="nav-link" data-link>Feedback</a>
+      <a href="/dashboard" class="nav-link" data-link>Dashboard</a>
+      <a href="/admin" class="nav-link nav-admin" data-link style="display:none">Admin</a>
+    </nav>
+    <div class="header-right">
+      <button id="feedback-fab" class="fab-btn" title="Send feedback" onclick="Feedback.showSubmitForm()">?</button>
+      <div id="notif-bell" class="notif-bell" style="display:none" onclick="Notifications.toggle()">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+        <span id="notif-badge" class="notif-badge" style="display:none">0</span>
+      </div>
+      <div id="notif-panel" class="notif-panel" style="display:none">
+        <div class="notif-panel-header">Notifications</div>
+        <div id="notif-list" class="notif-list"></div>
+      </div>
+      <button id="install-btn" class="btn btn-ghost" style="display:none">Install</button>
+      <div id="auth-area"></div>
+    </div>
+  </header>
+
+  <div id="filter-bar" class="filter-bar">
+    <div class="filter-chips" id="filter-chips">
+      <div class="filter-group">
+        <span class="filter-label">Type</span>
+        <button class="chip" data-filter="tag" data-value="Game">Game</button>
+        <button class="chip" data-filter="tag" data-value="Portfolio">Portfolio</button>
+        <button class="chip" data-filter="tag" data-value="Tool">Tool</button>
+        <button class="chip" data-filter="tag" data-value="Dashboard">Dashboard</button>
+        <button class="chip" data-filter="tag" data-value="AI">AI</button>
+        <button class="chip" data-filter="tag" data-value="Art">Art</button>
+        <button class="chip" data-filter="tag" data-value="E-commerce">E-commerce</button>
+        <button class="chip" data-filter="tag" data-value="Other">Other</button>
+      </div>
+      <div class="filter-group">
+        <span class="filter-label">Style</span>
+        <button class="chip" data-filter="style" data-value="Dark">Dark</button>
+        <button class="chip" data-filter="style" data-value="Minimal">Minimal</button>
+        <button class="chip" data-filter="style" data-value="Colorful">Colorful</button>
+        <button class="chip" data-filter="style" data-value="3D">3D</button>
+      </div>
+    </div>
+    <div class="filter-search">
+      <input type="search" id="search-input" placeholder="Search projects..." autocomplete="off">
+      <span id="results-count" class="results-count"></span>
+      <button id="clear-filters" class="btn btn-ghost btn-sm" style="display:none">Clear</button>
+    </div>
+  </div>
+
+  <main id="app-main">
+    <section id="page-discover" class="page active">
+      <div id="canvas-viewport" class="canvas-viewport">
+        <div id="canvas-container" class="canvas-container"></div>
+      </div>
+    </section>
+
+    <section id="page-profile" class="page">
+      <div class="profile-header" id="profile-header"></div>
+      <div class="profile-grid" id="profile-grid"></div>
+    </section>
+
+    <section id="page-feedback" class="page page-scroll">
+      <div class="page-container">
+        <div class="dashboard-header">
+          <h1>Feedback</h1>
+          <p class="dashboard-subtitle">View and respond to feedback on your projects</p>
+        </div>
+        <div id="feedback-container"></div>
+      </div>
+    </section>
+
+    <section id="page-feedback-thread" class="page page-scroll">
+      <div class="page-container" id="feedback-thread-view"></div>
+    </section>
+
+    <section id="page-dashboard" class="page page-scroll">
+      <div class="dashboard-container" id="dashboard-container">
+        <div class="dashboard-header">
+          <h1>Your Projects</h1>
+          <p class="dashboard-subtitle">Manage visibility and details for your portfolio</p>
+        </div>
+        <div id="dashboard-auth-gate">
+          <div class="auth-prompt">
+            <div class="auth-prompt-icon">P</div>
+            <h2>Sign in to manage your projects</h2>
+            <p>Log in with your Replit account to view and manage your project portfolio.</p>
+            <button class="btn btn-primary" onclick="window.location.href='/api/login?returnTo=/dashboard'">Log In</button>
+          </div>
+        </div>
+        <div id="dashboard-content" style="display:none">
+          <div class="dashboard-stats" id="dashboard-stats"></div>
+          <div class="dashboard-list" id="dashboard-list"></div>
+        </div>
+      </div>
+    </section>
+
+    <section id="page-admin" class="page page-scroll">
+      <div class="page-container">
+        <div class="dashboard-header">
+          <h1>Admin Overview</h1>
+          <p class="dashboard-subtitle">Global feedback observability and user management metrics</p>
+        </div>
+        <div id="admin-feedback-container"></div>
+      </div>
+    </section>
+  </main>
+
+  <div id="project-overlay" class="overlay" style="display:none">
+    <div class="overlay-backdrop" id="overlay-backdrop"></div>
+    <div class="overlay-content">
+      <button class="overlay-close" id="overlay-close">&times;</button>
+      <div class="overlay-iframe-wrap">
+        <iframe id="overlay-iframe" sandbox="allow-scripts allow-same-origin allow-forms allow-popups" loading="lazy"></iframe>
+        <div id="overlay-iframe-fallback" class="iframe-fallback" style="display:none">
+          <div class="fallback-content">
+            <p>This app cannot be previewed inline.</p>
+            <a id="fallback-visit" href="#" target="_blank" rel="noopener" class="btn btn-primary">Visit Directly</a>
+          </div>
+        </div>
+      </div>
+      <div class="overlay-sidebar">
+        <div class="overlay-meta" id="overlay-meta"></div>
+      </div>
+    </div>
+  </div>
+
+  <div id="feedback-submit-overlay" class="overlay" style="display:none">
+    <div class="overlay-backdrop" onclick="Feedback.hideSubmitForm()"></div>
+    <div class="fb-submit-modal">
+      <button class="overlay-close" onclick="Feedback.hideSubmitForm()">&times;</button>
+      <div id="fb-submit-form"></div>
+    </div>
+  </div>
+
+  <script src="/js/api.js"></script>
+  <script src="/js/router.js"></script>
+  <script src="/js/auth.js"></script>
+  <script src="/js/canvas.js"></script>
+  <script src="/js/feedback.js"></script>
+  <script src="/js/notifications.js"></script>
+  <script src="/js/app.js"></script>
+</body>
+</html>

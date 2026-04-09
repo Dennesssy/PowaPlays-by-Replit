@@ -3,13 +3,21 @@ info:
   # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: POWAPLAY API specification
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: Auth
+    description: Browser and mobile authentication endpoints.
+  - name: projects
+    description: Project discovery and management
+  - name: users
+    description: User profiles
+  - name: favorites
+    description: Favorite projects
 paths:
   /healthz:
     get:
@@ -24,7 +32,648 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+  /auth/user:
+    get:
+      tags: [Auth]
+      operationId: getCurrentAuthUser
+      summary: Get the currently authenticated user
+      parameters:
+        - $ref: '#/components/parameters/AuthorizationSessionHeader'
+        - $ref: '#/components/parameters/SessionCookie'
+      responses:
+        '200':
+          description: Auth status resolved successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthUserEnvelope'
+  /login:
+    get:
+      tags: [Auth]
+      operationId: beginBrowserLogin
+      summary: Start the browser OIDC login flow
+      parameters:
+        - name: returnTo
+          in: query
+          required: false
+          description: Relative path to redirect to after login (must start with `/`). Defaults to `/`.
+          schema:
+            type: string
+      responses:
+        '302':
+          description: Redirect to the OIDC authorization endpoint.
+  /callback:
+    get:
+      tags: [Auth]
+      operationId: handleBrowserLoginCallback
+      summary: Complete the browser OIDC login flow
+      parameters:
+        - name: code
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: state
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: iss
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uri
+      responses:
+        '302':
+          description: Redirect to the returnTo path on success or /api/login on failure.
+  /logout:
+    get:
+      tags: [Auth]
+      operationId: logoutBrowserSession
+      summary: Clear the session and begin OIDC logout
+      parameters:
+        - $ref: '#/components/parameters/AuthorizationSessionHeader'
+        - $ref: '#/components/parameters/SessionCookie'
+      responses:
+        '302':
+          description: Redirect to the OIDC provider logout URL.
+  /mobile-auth/token-exchange:
+    post:
+      tags: [Auth]
+      operationId: exchangeMobileAuthorizationCode
+      summary: Exchange a mobile OIDC code for a session token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MobileTokenExchangeRequest'
+      responses:
+        '200':
+          description: Session created successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MobileTokenExchangeSuccess'
+        '400':
+          description: Missing or invalid required fields.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /mobile-auth/logout:
+    post:
+      tags: [Auth]
+      operationId: logoutMobileSession
+      summary: Delete a mobile session token
+      parameters:
+        - $ref: '#/components/parameters/AuthorizationSessionHeader'
+      responses:
+        '200':
+          description: Logout processed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LogoutSuccess'
+  /projects:
+    get:
+      operationId: listProjects
+      tags: [projects]
+      summary: List public projects for discovery
+      parameters:
+        - name: tag
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: style
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: search
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 50
+      responses:
+        "200":
+          description: List of public projects
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProjectListResponse"
+  /projects/{id}:
+    get:
+      operationId: getProject
+      tags: [projects]
+      summary: Get a single project by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Project detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProjectDetail"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+  /users/{username}/profile:
+    get:
+      operationId: getUserProfile
+      tags: [users]
+      summary: Get a user's public profile
+      parameters:
+        - name: username
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: User profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserProfile"
+        "404":
+          description: User not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+  /users/{username}/projects:
+    get:
+      operationId: getUserProjects
+      tags: [users]
+      summary: List a user's public projects
+      parameters:
+        - name: username
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: User's public projects
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProjectListResponse"
+        "404":
+          description: User not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+  /me:
+    get:
+      operationId: getMe
+      tags: [users]
+      summary: Get current authenticated user info
+      parameters:
+        - $ref: '#/components/parameters/AuthorizationSessionHeader'
+        - $ref: '#/components/parameters/SessionCookie'
+      responses:
+        "200":
+          description: Current user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthUserEnvelope"
+        "401":
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+  /me/projects:
+    get:
+      operationId: getMyProjects
+      tags: [projects]
+      summary: List authenticated user's projects (including hidden)
+      parameters:
+        - $ref: '#/components/parameters/AuthorizationSessionHeader'
+        - $ref: '#/components/parameters/SessionCookie'
+      responses:
+        "200":
+          description: User's projects
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProjectListResponse"
+        "401":
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+  /me/projects/{id}:
+    patch:
+      operationId: updateMyProject
+      tags: [projects]
+      summary: Update a project's visibility or metadata
+      parameters:
+        - $ref: '#/components/parameters/AuthorizationSessionHeader'
+        - $ref: '#/components/parameters/SessionCookie'
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateProjectBody"
+      responses:
+        "200":
+          description: Updated project
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProjectDetail"
+        "401":
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "404":
+          description: Project not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+  /favorites/{projectId}:
+    post:
+      operationId: addFavorite
+      tags: [favorites]
+      summary: Favorite a project
+      parameters:
+        - $ref: '#/components/parameters/AuthorizationSessionHeader'
+        - $ref: '#/components/parameters/SessionCookie'
+        - name: projectId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Favorited
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FavoriteResponse"
+        "401":
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+    delete:
+      operationId: removeFavorite
+      tags: [favorites]
+      summary: Unfavorite a project
+      parameters:
+        - $ref: '#/components/parameters/AuthorizationSessionHeader'
+        - $ref: '#/components/parameters/SessionCookie'
+        - name: projectId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Unfavorited
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FavoriteResponse"
+        "401":
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+  /me/favorites:
+    get:
+      operationId: getMyFavorites
+      tags: [favorites]
+      summary: List user's favorited projects
+      parameters:
+        - $ref: '#/components/parameters/AuthorizationSessionHeader'
+        - $ref: '#/components/parameters/SessionCookie'
+      responses:
+        "200":
+          description: Favorited projects
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProjectListResponse"
+        "401":
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+  /feedback:
+    get:
+      operationId: listFeedback
+      tags: [feedback]
+      summary: List feedback items (internal users see all, external users see their own)
+      parameters:
+        - $ref: '#/components/parameters/AuthorizationSessionHeader'
+        - $ref: '#/components/parameters/SessionCookie'
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: type
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 50
+      responses:
+        "200":
+          description: Feedback list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FeedbackListResponse"
+    post:
+      operationId: submitFeedback
+      tags: [feedback]
+      summary: Submit feedback, bug report, or feature request
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SubmitFeedbackBody"
+      responses:
+        "201":
+          description: Feedback submitted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FeedbackDetail"
+  /feedback/{id}:
+    get:
+      operationId: getFeedback
+      tags: [feedback]
+      summary: Get feedback detail with responses
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Feedback with thread
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FeedbackWithThread"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+  /feedback/{id}/respond:
+    post:
+      operationId: respondToFeedback
+      tags: [feedback]
+      summary: Respond to feedback (internal or external)
+      parameters:
+        - $ref: '#/components/parameters/AuthorizationSessionHeader'
+        - $ref: '#/components/parameters/SessionCookie'
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FeedbackResponseBody"
+      responses:
+        "201":
+          description: Response posted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FeedbackResponseDetail"
+        "401":
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+  /feedback/{id}/status:
+    patch:
+      operationId: updateFeedbackStatus
+      tags: [feedback]
+      summary: Update feedback status (internal only)
+      parameters:
+        - $ref: '#/components/parameters/AuthorizationSessionHeader'
+        - $ref: '#/components/parameters/SessionCookie'
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateFeedbackStatusBody"
+      responses:
+        "200":
+          description: Status updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FeedbackDetail"
+        "401":
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+  /analytics/events:
+    post:
+      operationId: trackEvent
+      tags: [analytics]
+      summary: Track a client-side analytics event
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TrackEventBody"
+      responses:
+        "200":
+          description: Event tracked
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+  /analytics/errors:
+    post:
+      operationId: reportError
+      tags: [analytics]
+      summary: Report a client-side error (Sentry-compatible)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReportErrorBody"
+      responses:
+        "200":
+          description: Error reported
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+  /admin/analytics:
+    get:
+      operationId: getAnalyticsDashboard
+      tags: [analytics]
+      summary: Get aggregated analytics data (internal only)
+      parameters:
+        - $ref: '#/components/parameters/AuthorizationSessionHeader'
+        - $ref: '#/components/parameters/SessionCookie'
+        - name: period
+          in: query
+          required: false
+          schema:
+            type: string
+            default: "7d"
+      responses:
+        "200":
+          description: Analytics summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AnalyticsDashboard"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+  /me/notifications:
+    get:
+      operationId: getMyNotifications
+      tags: [notifications]
+      summary: Get user's notifications
+      parameters:
+        - $ref: '#/components/parameters/AuthorizationSessionHeader'
+        - $ref: '#/components/parameters/SessionCookie'
+      responses:
+        "200":
+          description: Notifications
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotificationListResponse"
+        "401":
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+  /me/notifications/{id}/read:
+    post:
+      operationId: markNotificationRead
+      tags: [notifications]
+      summary: Mark a notification as read
+      parameters:
+        - $ref: '#/components/parameters/AuthorizationSessionHeader'
+        - $ref: '#/components/parameters/SessionCookie'
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Marked as read
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+        "401":
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
 components:
+  parameters:
+    AuthorizationSessionHeader:
+      name: Authorization
+      in: header
+      required: false
+      description: Opaque session token — Bearer <sid>.
+      schema:
+        type: string
+    SessionCookie:
+      name: sid
+      in: cookie
+      required: false
+      description: Browser session cookie.
+      schema:
+        type: string
   schemas:
     HealthStatus:
       type: object
@@ -33,4 +682,380 @@ components:
           type: string
       required:
         - status
-
+    AuthUser:
+      type: object
+      required: [id, email, firstName, lastName, profileImageUrl]
+      properties:
+        id:
+          type: string
+        email:
+          type: [string, 'null']
+          format: email
+        firstName:
+          type: [string, 'null']
+        lastName:
+          type: [string, 'null']
+        profileImageUrl:
+          type: [string, 'null']
+    AuthUserEnvelope:
+      type: object
+      required: [user]
+      properties:
+        user:
+          oneOf:
+            - $ref: '#/components/schemas/AuthUser'
+            - type: 'null'
+    MobileTokenExchangeRequest:
+      type: object
+      required: [code, code_verifier, redirect_uri, state]
+      properties:
+        code:
+          type: string
+          minLength: 1
+        code_verifier:
+          type: string
+          minLength: 1
+        redirect_uri:
+          type: string
+          minLength: 1
+          format: uri
+        state:
+          type: string
+          minLength: 1
+        nonce:
+          type: string
+          minLength: 1
+    MobileTokenExchangeSuccess:
+      type: object
+      required: [token]
+      properties:
+        token:
+          type: string
+    LogoutSuccess:
+      type: object
+      required: [success]
+      properties:
+        success:
+          type: boolean
+          const: true
+    ErrorEnvelope:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: string
+    ProjectDetail:
+      type: object
+      required: [id, title, slug, url, description, tags, style, isPublic, isHidden, thumbnailUrl, previewVideoUrl, favoriteCount, ownerUsername, ownerAvatarUrl, createdAt]
+      properties:
+        id:
+          type: integer
+        title:
+          type: string
+        slug:
+          type: string
+        url:
+          type: string
+        description:
+          type: [string, 'null']
+        tags:
+          type: array
+          items:
+            type: string
+        style:
+          type: [string, 'null']
+        isPublic:
+          type: boolean
+        isHidden:
+          type: boolean
+        thumbnailUrl:
+          type: [string, 'null']
+        previewVideoUrl:
+          type: [string, 'null']
+        favoriteCount:
+          type: integer
+        ownerUsername:
+          type: string
+        ownerAvatarUrl:
+          type: [string, 'null']
+        createdAt:
+          type: string
+          format: date-time
+    ProjectListResponse:
+      type: object
+      required: [projects, total]
+      properties:
+        projects:
+          type: array
+          items:
+            $ref: "#/components/schemas/ProjectDetail"
+        total:
+          type: integer
+    UpdateProjectBody:
+      type: object
+      properties:
+        isHidden:
+          type: boolean
+        description:
+          type: string
+        tags:
+          type: array
+          items:
+            type: string
+        style:
+          type: string
+    FavoriteResponse:
+      type: object
+      required: [success]
+      properties:
+        success:
+          type: boolean
+    UserProfile:
+      type: object
+      required: [id, username, displayName, avatarUrl, projectCount, createdAt]
+      properties:
+        id:
+          type: string
+        username:
+          type: string
+        displayName:
+          type: [string, 'null']
+        avatarUrl:
+          type: [string, 'null']
+        bio:
+          type: [string, 'null']
+        projectCount:
+          type: integer
+        createdAt:
+          type: string
+          format: date-time
+    SuccessResponse:
+      type: object
+      required: [success]
+      properties:
+        success:
+          type: boolean
+    SubmitFeedbackBody:
+      type: object
+      required: [type, title, body]
+      properties:
+        type:
+          type: string
+          enum: [bug, feature, suggestion, general]
+        title:
+          type: string
+          minLength: 1
+        body:
+          type: string
+          minLength: 1
+        projectId:
+          type: integer
+        email:
+          type: string
+        name:
+          type: string
+        url:
+          type: string
+    FeedbackDetail:
+      type: object
+      required: [id, type, status, priority, title, body, createdAt, updatedAt]
+      properties:
+        id:
+          type: integer
+        type:
+          type: string
+        status:
+          type: string
+        priority:
+          type: string
+        title:
+          type: string
+        body:
+          type: string
+        submitterName:
+          type: [string, 'null']
+        submitterEmail:
+          type: [string, 'null']
+        projectId:
+          type: [integer, 'null']
+        assigneeName:
+          type: [string, 'null']
+        responseCount:
+          type: integer
+        resolvedAt:
+          type: [string, 'null']
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    FeedbackListResponse:
+      type: object
+      required: [items, total]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/FeedbackDetail"
+        total:
+          type: integer
+    FeedbackWithThread:
+      type: object
+      required: [feedback, responses]
+      properties:
+        feedback:
+          $ref: "#/components/schemas/FeedbackDetail"
+        responses:
+          type: array
+          items:
+            $ref: "#/components/schemas/FeedbackResponseDetail"
+    FeedbackResponseBody:
+      type: object
+      required: [body]
+      properties:
+        body:
+          type: string
+          minLength: 1
+        isInternal:
+          type: boolean
+          default: false
+        newStatus:
+          type: string
+    FeedbackResponseDetail:
+      type: object
+      required: [id, feedbackId, authorName, authorRole, body, isInternal, createdAt]
+      properties:
+        id:
+          type: integer
+        feedbackId:
+          type: integer
+        authorName:
+          type: string
+        authorRole:
+          type: string
+        body:
+          type: string
+        isInternal:
+          type: boolean
+        newStatus:
+          type: [string, 'null']
+        createdAt:
+          type: string
+          format: date-time
+    UpdateFeedbackStatusBody:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          enum: [open, acknowledged, in_progress, resolved, closed, wont_fix]
+        assigneeId:
+          type: string
+    TrackEventBody:
+      type: object
+      required: [event]
+      properties:
+        event:
+          type: string
+        path:
+          type: string
+        projectId:
+          type: integer
+        metadata:
+          type: object
+        referrer:
+          type: string
+        sessionId:
+          type: string
+    ReportErrorBody:
+      type: object
+      required: [message]
+      properties:
+        message:
+          type: string
+        stack:
+          type: string
+        level:
+          type: string
+          default: error
+        path:
+          type: string
+        projectId:
+          type: integer
+        metadata:
+          type: object
+    AnalyticsDashboard:
+      type: object
+      required: [totalPageViews, uniqueVisitors, totalErrors, topProjects, topPages, feedbackCounts]
+      properties:
+        totalPageViews:
+          type: integer
+        uniqueVisitors:
+          type: integer
+        totalErrors:
+          type: integer
+        topProjects:
+          type: array
+          items:
+            type: object
+            properties:
+              projectId:
+                type: integer
+              title:
+                type: string
+              views:
+                type: integer
+        topPages:
+          type: array
+          items:
+            type: object
+            properties:
+              path:
+                type: string
+              views:
+                type: integer
+        feedbackCounts:
+          type: object
+          properties:
+            open:
+              type: integer
+            acknowledged:
+              type: integer
+            in_progress:
+              type: integer
+            resolved:
+              type: integer
+            closed:
+              type: integer
+    NotificationDetail:
+      type: object
+      required: [id, type, title, read, createdAt]
+      properties:
+        id:
+          type: integer
+        type:
+          type: string
+        title:
+          type: string
+        body:
+          type: [string, 'null']
+        feedbackId:
+          type: [integer, 'null']
+        actionUrl:
+          type: [string, 'null']
+        read:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+    NotificationListResponse:
+      type: object
+      required: [notifications, unreadCount]
+      properties:
+        notifications:
+          type: array
+          items:
+            $ref: "#/components/schemas/NotificationDetail"
+        unreadCount:
+          type: integer

@@ -1,0 +1,40 @@
+kind = "web"
+previewPath = "/"
+title = "POWAPLAY"
+version = "1.0.0"
+id = "artifacts/powaplay"
+router = "path"
+
+[[integratedSkills]]
+name = "react-vite"
+version = "1.0.0"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 8080
+
+[services.development]
+run = "echo 'Frontend served by API server on port 8080'"
+
+[services.production]
+
+[services.production.build]
+args = ["pnpm", "--filter", "@workspace/api-server", "run", "build"]
+
+[services.production.build.env]
+NODE_ENV = "production"
+
+[services.production.run]
+args = ["node", "--enable-source-maps", "artifacts/api-server/dist/index.mjs"]
+
+[services.production.run.env]
+PORT = "8080"
+NODE_ENV = "production"
+
+[services.production.health.startup]
+path = "/api/healthz"
+
+[services.env]
+PORT = "8080"
+BASE_PATH = "/"
