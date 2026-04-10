@@ -417,6 +417,7 @@ window.App = {
       const safeName = escapeHtml(profile.displayName || username);
       const safeUname = escapeHtml(profile.username);
       const safeBio = escapeHtml(profile.bio);
+      const isOwnProfile = Auth.user && Auth.user.username === username;
       header.innerHTML = `
         <div class="profile-card">
           ${profile.avatarUrl ? `<img src="${escapeHtml(profile.avatarUrl)}" alt="" class="profile-avatar">` : `<div class="profile-avatar-placeholder">${safeName[0].toUpperCase()}</div>`}
@@ -426,7 +427,13 @@ window.App = {
             ${profile.bio ? `<p class="profile-bio">${safeBio}</p>` : ''}
             <p class="profile-count">${profile.projectCount} public project${profile.projectCount !== 1 ? 's' : ''}</p>
           </div>
-          <button class="btn btn-ghost btn-sm profile-share-btn">Share</button>
+          <div class="profile-actions">
+            <button class="btn btn-ghost btn-sm profile-share-btn">Share</button>
+            ${isOwnProfile ? `
+              <a href="/dashboard" class="btn btn-ghost btn-sm">Dashboard</a>
+              <a href="/api/logout" class="btn btn-ghost btn-sm profile-logout-btn">Log Out</a>
+            ` : ''}
+          </div>
         </div>
       `;
       header.querySelector('.profile-share-btn').addEventListener('click', () => navigator.clipboard.writeText(location.href));
