@@ -94,17 +94,12 @@ async function upsertUser(claims: Record<string, unknown>) {
     .split(",")
     .map((e) => e.trim().toLowerCase())
     .filter(Boolean);
-  if (
-    email &&
-    masterEmails.includes(email.toLowerCase()) &&
-    user.role !== "admin" &&
-    user.role !== "internal"
-  ) {
+  if (email && masterEmails.includes(email.toLowerCase()) && user.role !== "internal") {
     await db
       .update(usersTable)
-      .set({ role: "admin" })
+      .set({ role: "internal" })
       .where(eq(usersTable.id, user.id));
-    user.role = "admin";
+    user.role = "internal";
   }
 
   if (
