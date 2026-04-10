@@ -562,14 +562,17 @@ window.App = {
 
     if (clearBtn) clearBtn.style.display = hasFilters ? '' : 'none';
     if (countEl) {
-      countEl.textContent = hasFilters ? `Filtering by: ${this.currentTag || this.currentSearch || ''}` : '';
+      const activeLabel = this.currentTag || this.currentStyle || this.currentSearch || '';
+      countEl.textContent = hasFilters ? `Filtering by: ${activeLabel}` : '';
     }
 
     document.querySelectorAll('.fp-chip').forEach((c) => {
       c.classList.toggle('active', c.dataset.tag === this.currentTag);
     });
     document.querySelectorAll('.fp-list-item').forEach((item) => {
-      item.classList.toggle('active', item.dataset.tag === this.currentTag);
+      const matchTag = item.dataset.tag && item.dataset.tag === this.currentTag;
+      const matchStyle = item.dataset.style && item.dataset.style === this.currentStyle;
+      item.classList.toggle('active', matchTag || matchStyle);
     });
   },
 
