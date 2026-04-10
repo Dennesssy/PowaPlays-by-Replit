@@ -3,10 +3,7 @@ window.Canvas = {
   container: null,
   x: 0,
   y: 0,
-  scale: 1,
   dragging: false,
-  dragStartX: 0,
-  dragStartY: 0,
   lastX: 0,
   lastY: 0,
   velX: 0,
@@ -15,11 +12,13 @@ window.Canvas = {
   projects: [],
   filtered: [],
   tiles: [],
-  TILE_W: 320,
-  TILE_H: 240,
-  GAP: 20,
-  COLS: 4,
-  _lazyObserver: null,
+  _mountedTiles: new Map(),
+  TILE_W: 280,
+  TILE_H: 220,
+  GAP: 8,
+  COLS: 6,
+  _virtualRafId: null,
+  _lastVirtualCheck: 0,
 
   _isMobile() {
     return window.innerWidth <= 768;
@@ -28,38 +27,14 @@ window.Canvas = {
   _updateTileSize() {
     if (this._isMobile()) {
       const vw = window.innerWidth;
-      this.TILE_W = vw - 32;
-      this.TILE_H = Math.round(this.TILE_W * 0.72);
-      this.GAP = 16;
-      this.COLS = 1;
+      this.GAP = 6;
+      this.COLS = 2;
+      this.TILE_W = Math.floor((vw - this.GAP * 3) / 2);
+      this.TILE_H = Math.round(this.TILE_W * 0.85);
     } else {
-      this.TILE_W = 320;
-      this.TILE_H = 240;
-      this.GAP = 20;
+      this.GAP = 8;
       this._updateCols();
     }
-  },
-
-  _initLazyLoading() {
-    if (this._lazyObserver) return;
-    if (!('IntersectionObserver' in window)) return;
-    this._lazyObserver = new IntersectionObserver((entries) => {
-      entries.forEach((entry) => {
-        if (entry.isIntersecting) {
-          const tile = entry.target;
-          const lazySrc = tile.dataset.lazySrc;
-          if (lazySrc) {
-            const img = tile.querySelector('.tile-thumb-lazy');
-            if (img) {
-              img.src = lazySrc;
-              img.onload = () => img.classList.add('loaded');
-            }
-            delete tile.dataset.lazySrc;
-          }
-          this._lazyObserver.unobserve(tile);
-        }
-      });
-    }, { rootMargin: '200px' });
   },
 
   init(viewportEl, containerEl) {
@@ -67,12 +42,13 @@ window.Canvas = {
     this.container = containerEl;
     this._bindEvents();
     this._updateTileSize();
-    this._initLazyLoading();
     window.addEventListener('resize', () => {
       const wasMobile = this._lastMobileState;
       this._updateTileSize();
       if (wasMobile !== this._isMobile()) {
         this.render();
+      } else {
+        this._updateVirtualTiles();
       }
       this._lastMobileState = this._isMobile();
     });
@@ -82,7 +58,14 @@ window.Canvas = {
   _updateCols() {
     if (!this.el) return;
     const w = this.el.clientWidth;
-    this.COLS = Math.max(1, Math.floor(w / (this.TILE_W + this.GAP)));
+    this.TILE_W = 280;
+    this.TILE_H = 220;
+    this.COLS = Math.max(2, Math.floor(w / (this.TILE_W + this.GAP)));
+    const totalGridW = this.COLS * this.TILE_W + (this.COLS - 1) * this.GAP;
+    if (totalGridW < w - 32) {
+      this.TILE_W = Math.floor((w - 32 - (this.COLS - 1) * this.GAP) / this.COLS);
+      this.TILE_H = Math.round(this.TILE_W * 0.78);
+    }
   },
 
   setProjects(projects) {
@@ -102,12 +85,11 @@ window.Canvas = {
       const row = Math.floor(idx / cols);
       const x = col * (this.TILE_W + this.GAP);
       const y = row * (this.TILE_H + this.GAP);
-      const tile = this._createTile(project, x, y, idx);
-      this.container.appendChild(tile);
-      this.tiles.push({ el: tile, x, y, project });
+      this.tiles.push({ x, y, project, index: idx, el: null });
     });
     const rows = Math.ceil(this.filtered.length / cols);
     this.container.style.height = (rows * (this.TILE_H + this.GAP) - this.GAP) + 'px';
+    this._updateVirtualTiles();
   },
 
   filter(tag, style, search) {
@@ -131,34 +113,98 @@ window.Canvas = {
   },
 
   render() {
+    this._mountedTiles.forEach((el) => el.remove());
+    this._mountedTiles.clear();
     this.container.innerHTML = '';
     this.tiles = [];
     this._updateTileSize();
     const cols = this.COLS;
     const isMobile = this._isMobile();
 
-    if (isMobile) {
-      this.container.style.left = '16px';
-      this.container.style.top = '16px';
-    } else {
-      this.container.style.left = '50px';
-      this.container.style.top = '50px';
-    }
+    this.container.style.left = isMobile ? (this.GAP + 'px') : '16px';
+    this.container.style.top = isMobile ? (this.GAP + 'px') : '16px';
 
     this.filtered.forEach((project, i) => {
       const col = i % cols;
       const row = Math.floor(i / cols);
       const x = col * (this.TILE_W + this.GAP);
       const y = row * (this.TILE_H + this.GAP);
-
-      const tile = this._createTile(project, x, y, i);
-      this.container.appendChild(tile);
-      this.tiles.push({ el: tile, x, y, project });
+      this.tiles.push({ x, y, project, index: i, el: null });
     });
 
     const rows = Math.ceil(this.filtered.length / cols);
     this.container.style.width = (cols * (this.TILE_W + this.GAP) - this.GAP) + 'px';
     this.container.style.height = (rows * (this.TILE_H + this.GAP) - this.GAP) + 'px';
+
+    this._updateVirtualTiles();
+  },
+
+  _getVisibleBounds() {
+    if (!this.el) return { left: 0, top: 0, right: 1280, bottom: 720 };
+    const vw = this.el.clientWidth;
+    const vh = this.el.clientHeight;
+    const buffer = Math.max(vw, vh);
+
+    return {
+      left: -this.x - buffer,
+      top: -this.y - buffer,
+      right: -this.x + vw + buffer,
+      bottom: -this.y + vh + buffer,
+    };
+  },
+
+  _updateVirtualTiles() {
+    const now = performance.now();
+    if (now - this._lastVirtualCheck < 16) return;
+    this._lastVirtualCheck = now;
+
+    const bounds = this._getVisibleBounds();
+    const tileW = this.TILE_W;
+    const tileH = this.TILE_H;
+    const offsetLeft = parseInt(this.container.style.left) || 0;
+    const offsetTop = parseInt(this.container.style.top) || 0;
+
+    const toMount = [];
+    const toUnmount = [];
+    const visibleSet = new Set();
+
+    for (let i = 0; i < this.tiles.length; i++) {
+      const t = this.tiles[i];
+      const tx = t.x + offsetLeft;
+      const ty = t.y + offsetTop;
+      const inView = tx + tileW > bounds.left && tx < bounds.right &&
+                     ty + tileH > bounds.top && ty < bounds.bottom;
+
+      if (inView) {
+        visibleSet.add(i);
+        if (!t.el) {
+          toMount.push(i);
+        }
+      }
+    }
+
+    this._mountedTiles.forEach((el, idx) => {
+      if (!visibleSet.has(idx)) {
+        toUnmount.push(idx);
+      }
+    });
+
+    for (const idx of toUnmount) {
+      const el = this._mountedTiles.get(idx);
+      if (el) {
+        el.remove();
+        this._mountedTiles.delete(idx);
+        this.tiles[idx].el = null;
+      }
+    }
+
+    for (const idx of toMount) {
+      const t = this.tiles[idx];
+      const tile = this._createTile(t.project, t.x, t.y, t.index);
+      this.container.appendChild(tile);
+      t.el = tile;
+      this._mountedTiles.set(idx, tile);
+    }
   },
 
   _createTile(project, x, y, index) {
@@ -168,19 +214,14 @@ window.Canvas = {
     tile.style.top = y + 'px';
     tile.style.width = this.TILE_W + 'px';
     tile.style.height = this.TILE_H + 'px';
-    tile.style.animationDelay = Math.min(index * 40, 600) + 'ms';
+    tile.style.animationDelay = Math.min(index * 30, 500) + 'ms';
 
     const initials = (project.title || 'P').slice(0, 2).toUpperCase();
     const hue = (project.id * 47) % 360;
 
     let thumbHtml;
     if (project.thumbnailUrl) {
-      if (this._isMobile() && this._lazyObserver) {
-        thumbHtml = `<img src="" alt="" class="tile-thumb tile-thumb-lazy" data-src="${escapeHtml(project.thumbnailUrl)}">`;
-        tile.dataset.lazySrc = project.thumbnailUrl;
-      } else {
-        thumbHtml = `<img src="${escapeHtml(project.thumbnailUrl)}" alt="" class="tile-thumb" loading="lazy">`;
-      }
+      thumbHtml = `<img src="${escapeHtml(project.thumbnailUrl)}" alt="" class="tile-thumb" loading="lazy">`;
     } else {
       thumbHtml = `<div class="tile-placeholder" style="background: linear-gradient(135deg, hsl(${hue}, 40%, 92%), hsl(${hue + 40}, 50%, 85%))"><span>${initials}</span></div>`;
     }
@@ -209,10 +250,6 @@ window.Canvas = {
         <div class="tile-tags">${tagsHtml}</div>
       </div>
     `;
-
-    if (this._lazyObserver && tile.dataset.lazySrc) {
-      this._lazyObserver.observe(tile);
-    }
 
     const favBtn = tile.querySelector('.tile-fav-btn');
     favBtn.addEventListener('click', (e) => {
@@ -267,6 +304,10 @@ window.Canvas = {
       startTransY = this.y;
       this.velX = 0;
       this.velY = 0;
+      if (this.rafId) {
+        cancelAnimationFrame(this.rafId);
+        this.rafId = null;
+      }
       this.el.style.cursor = 'grabbing';
     };
 
@@ -329,7 +370,16 @@ window.Canvas = {
 
   _applyTransform() {
     this.container.style.transform = `translate3d(${this.x}px, ${this.y}px, 0)`;
+    this._scheduleVirtualUpdate();
     this._checkEdge();
+  },
+
+  _scheduleVirtualUpdate() {
+    if (this._virtualRafId) return;
+    this._virtualRafId = requestAnimationFrame(() => {
+      this._virtualRafId = null;
+      this._updateVirtualTiles();
+    });
   },
 
   _checkEdge() {
@@ -356,5 +406,28 @@ window.Canvas = {
       this.rafId = requestAnimationFrame(step);
     };
     this.rafId = requestAnimationFrame(step);
+  },
+
+  centerOnGrid(animate) {
+    if (this.tiles.length === 0) return;
+    const containerW = parseInt(this.container.style.width) || 0;
+    const containerH = parseInt(this.container.style.height) || 0;
+    const vw = this.el.clientWidth;
+    const vh = this.el.clientHeight;
+
+    const targetX = (vw - containerW) / 2;
+    const targetY = Math.min(0, (vh - containerH) / 2);
+
+    if (animate) {
+      this.container.style.transition = 'transform 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94)';
+      this.x = targetX;
+      this.y = targetY;
+      this._applyTransform();
+      setTimeout(() => { this.container.style.transition = ''; }, 420);
+    } else {
+      this.x = targetX;
+      this.y = targetY;
+      this._applyTransform();
+    }
   },
 };

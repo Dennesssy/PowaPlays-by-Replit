@@ -88,6 +88,11 @@ window.App = {
 
     this._buildDesktopFilterChips();
     this._setupFilters();
+
+    if (this.currentTag) {
+      const chip = document.querySelector(`.chip[data-value="${CSS.escape(this.currentTag)}"]`);
+      if (chip) chip.classList.add('active');
+    }
   },
 
   _buildDesktopFilterChips() {
@@ -174,13 +179,36 @@ window.App = {
 
   async _showDiscover() {
     this._showPage('discover');
+
+    const urlParams = new URLSearchParams(location.search);
+    if (urlParams.has('tag')) {
+      this.currentTag = urlParams.get('tag');
+      const chip = document.querySelector(`.chip[data-value="${CSS.escape(this.currentTag)}"]`);
+      if (chip) chip.classList.add('active');
+    }
+    if (urlParams.has('style')) {
+      this.currentStyle = urlParams.get('style');
+    }
+    if (urlParams.has('q')) {
+      this.currentSearch = urlParams.get('q');
+      document.getElementById('search-input').value = this.currentSearch;
+    }
+
+    const hasFilters = this.currentTag || this.currentStyle || this.currentSearch;
+
     this._discoverPage = 1;
     this._discoverAllLoaded = false;
     try {
-      const data = await API.getProjects({ page: 1, limit: 50 });
+      const params = { page: 1, limit: 50 };
+      if (this.currentTag) params.tag = this.currentTag;
+      if (this.currentStyle) params.style = this.currentStyle;
+      if (this.currentSearch) params.search = this.currentSearch;
+
+      const data = await API.getProjects(params);
       Canvas.setProjects(data.projects || []);
       this._discoverTotal = data.total || 0;
       this._updateResultsCount(this._discoverTotal);
+      document.getElementById('clear-filters').style.display = hasFilters ? '' : 'none';
       if ((data.projects || []).length < 50 || (data.projects || []).length >= this._discoverTotal) {
         this._discoverAllLoaded = true;
       }
@@ -445,6 +473,14 @@ window.App = {
     const clearBtn = document.getElementById('clear-filters');
     const hasFilters = this.currentTag || this.currentStyle || this.currentSearch;
     clearBtn.style.display = hasFilters ? '' : 'none';
+
+    const urlParams = new URLSearchParams();
+    if (this.currentTag) urlParams.set('tag', this.currentTag);
+    if (this.currentStyle) urlParams.set('style', this.currentStyle);
+    if (this.currentSearch) urlParams.set('q', this.currentSearch);
+    const qs = urlParams.toString();
+    const newUrl = '/' + (qs ? '?' + qs : '');
+    history.replaceState(null, '', newUrl);
 
     const params = { limit: 100 };
     if (this.currentTag) params.tag = this.currentTag;

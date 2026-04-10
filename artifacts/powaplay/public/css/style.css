@@ -319,13 +319,13 @@ img { display: block; max-width: 100%; }
   position: relative;
   user-select: none;
   -webkit-user-select: none;
-  background: var(--bg-secondary);
+  background: var(--bg-primary);
 }
 
 .canvas-container {
   position: absolute;
-  top: 50px;
-  left: 50px;
+  top: 16px;
+  left: 16px;
   will-change: transform;
   transform: translate3d(0, 0, 0);
   backface-visibility: hidden;
@@ -338,23 +338,21 @@ img { display: block; max-width: 100%; }
 
 .tile {
   position: absolute;
-  border-radius: var(--radius);
+  border-radius: var(--radius-sm);
   overflow: hidden;
   background: var(--bg-card);
   border: 1px solid var(--border);
   cursor: pointer;
-  transition: border-color 0.25s ease, box-shadow 0.3s ease, transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: box-shadow 0.25s ease, transform 0.25s ease;
   animation: tileEnter 0.4s ease both;
   will-change: transform;
   transform: translate3d(0, 0, 0);
   backface-visibility: hidden;
-  box-shadow: var(--shadow-sm);
 }
 
 .tile:hover {
-  border-color: var(--border-hover);
-  box-shadow: var(--shadow-xl);
-  transform: translate3d(0, -6px, 0) scale(1.01);
+  box-shadow: var(--shadow-md);
+  transform: translate3d(0, -3px, 0);
   z-index: 10;
 }
 
@@ -415,20 +413,14 @@ img { display: block; max-width: 100%; }
 .tile-meta {
   display: flex;
   justify-content: space-between;
+  align-items: center;
   font-size: 11px;
   color: var(--text-muted);
   margin-bottom: 4px;
+  gap: 4px;
 }
 
 .tile-owner { color: var(--text-secondary); }
-.tile-favs::before { content: '\2665 '; }
-
-.tile-meta {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 8px;
-}
 
 .tile-fav-btn {
   display: inline-flex;
@@ -460,15 +452,6 @@ img { display: block; max-width: 100%; }
 
 .tile-fav-count {
   font-weight: 600;
-}
-
-.tile-thumb-lazy {
-  opacity: 0;
-  transition: opacity 0.4s ease;
-}
-
-.tile-thumb-lazy.loaded {
-  opacity: 1;
 }
 
 .tile-tags {
@@ -1776,21 +1759,29 @@ img { display: block; max-width: 100%; }
     display: flex;
   }
 
-  .canvas-container {
-    top: 16px;
-    left: 16px;
-  }
-
   .tile-media {
-    height: 75%;
+    height: 72%;
   }
 
   .tile-info {
-    padding: 8px 12px;
+    padding: 6px 8px;
   }
 
   .tile-title {
-    font-size: 14px;
+    font-size: 12px;
+  }
+
+  .tile-owner {
+    font-size: 10px;
+  }
+
+  .tile-fav-btn {
+    font-size: 10px;
+    padding: 1px 4px;
+  }
+
+  .tile-tags {
+    display: none;
   }
 
   .overlay-content {
