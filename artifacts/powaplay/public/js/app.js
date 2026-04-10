@@ -233,32 +233,13 @@ window.App = {
       if (this.currentStyle) baseParams.style = this.currentStyle;
       if (this.currentSearch) baseParams.search = this.currentSearch;
 
-      const p1data = await API.getProjects({ ...baseParams, page: 1, limit: 500 });
-      this._discoverTotal = p1data.total || 0;
+      const data = await API.getProjects({ ...baseParams, page: 1, limit: 500 });
+      this._discoverTotal = data.total || 0;
       this._updateResultsCount(this._discoverTotal);
 
-      const totalPages = Math.max(1, Math.ceil(this._discoverTotal / 500));
-      const startPage = totalPages >= 3 ? Math.ceil(totalPages / 2) : 1;
-
-      if (startPage > 1) {
-        const midData = await API.getProjects({ ...baseParams, page: startPage, limit: 500 });
-        const midProjects = midData.projects || [];
-        if (midProjects.length > 0) {
-          Canvas.setProjects(midProjects);
-          this._discoverPage = startPage;
-          this._discoverNorthPage = startPage - 1;
-          this._discoverNorthAllLoaded = false;
-          this._discoverAllLoaded = (midProjects.length < 500) || (startPage * 500 >= this._discoverTotal);
-        } else {
-          Canvas.setProjects(p1data.projects || []);
-          this._discoverPage = 1;
-          this._discoverAllLoaded = (p1data.projects || []).length >= this._discoverTotal;
-        }
-      } else {
-        Canvas.setProjects(p1data.projects || []);
-        this._discoverPage = 1;
-        this._discoverAllLoaded = (p1data.projects || []).length >= this._discoverTotal;
-      }
+      const projects = data.projects || [];
+      Canvas.setProjects(projects);
+      this._discoverAllLoaded = projects.length >= this._discoverTotal;
       this._setupInfiniteScroll();
     } catch (err) {
       console.error('Failed to load projects:', err);
