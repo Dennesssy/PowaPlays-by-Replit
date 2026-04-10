@@ -21,6 +21,7 @@ window.Canvas = {
   _lastVirtualCheck: 0,
   _heroEl: null,
   _heroGridIndex: -1,
+  _heroGridIndex2: -1,
 
   _isMobile() {
     return window.innerWidth <= 768;
@@ -134,6 +135,7 @@ window.Canvas = {
 
     if (this._heroGridIndex >= 0) {
       this._heroGridIndex += newProjects.length;
+      this._heroGridIndex2 += newProjects.length;
     }
 
     this.y -= shiftY;
@@ -174,8 +176,9 @@ window.Canvas = {
     this.container.style.left = isMobile ? (this.GAP + 'px') : '16px';
     this.container.style.top = isMobile ? (this.GAP + 'px') : '16px';
 
-    const heroCol = Math.floor(cols / 2);
+    const heroCol = Math.max(0, Math.floor((cols - 2) / 2));
     this._heroGridIndex = cols + heroCol;
+    this._heroGridIndex2 = this._heroGridIndex + 1;
 
     this.filtered.forEach((project, i) => {
       const col = i % cols;
@@ -189,10 +192,11 @@ window.Canvas = {
     this.container.style.width = (cols * (this.TILE_W + this.GAP) - this.GAP) + 'px';
     this.container.style.height = (rows * (this.TILE_H + this.GAP) - this.GAP) + 'px';
 
-    if (this.filtered.length > this._heroGridIndex) {
+    if (this.filtered.length > this._heroGridIndex2) {
       const hx = heroCol * (this.TILE_W + this.GAP);
       const hy = 1 * (this.TILE_H + this.GAP);
-      this._heroEl = this._createHeroTile(hx, hy);
+      const heroW = 2 * this.TILE_W + this.GAP;
+      this._heroEl = this._createHeroTile(hx, hy, heroW);
       this.container.appendChild(this._heroEl);
     }
 
@@ -260,7 +264,7 @@ window.Canvas = {
 
     for (const idx of toMount) {
       const t = this.tiles[idx];
-      if (idx === this._heroGridIndex) continue;
+      if (idx === this._heroGridIndex || idx === this._heroGridIndex2) continue;
       const tile = this._createTile(t.project, t.x, t.y, t.index);
       this.container.appendChild(tile);
       t.el = tile;
@@ -268,12 +272,12 @@ window.Canvas = {
     }
   },
 
-  _createHeroTile(x, y) {
+  _createHeroTile(x, y, heroW) {
     const tile = document.createElement('div');
     tile.className = 'tile tile-hero';
     tile.style.left = x + 'px';
     tile.style.top = y + 'px';
-    tile.style.width = this.TILE_W + 'px';
+    tile.style.width = (heroW || this.TILE_W) + 'px';
     tile.style.height = this.TILE_H + 'px';
     tile.style.zIndex = '10';
     tile.innerHTML = `

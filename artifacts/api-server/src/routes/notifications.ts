@@ -1,6 +1,6 @@
 import { Router, type IRouter, type Request, type Response } from "express";
 import { db, notificationsTable } from "@workspace/db";
-import { eq, sql, desc } from "drizzle-orm";
+import { eq, and, sql, desc } from "drizzle-orm";
 
 const router: IRouter = Router();
 
@@ -11,19 +11,23 @@ router.get("/me/notifications", async (req: Request, res: Response) => {
   }
 
   try {
-    const notifications = await db
-      .select()
-      .from(notificationsTable)
-      .where(eq(notificationsTable.recipientId, req.user.id))
-      .orderBy(desc(notificationsTable.createdAt))
-      .limit(50);
-
-    const [unreadResult] = await db
-      .select({ count: sql<number>`count(*)::int` })
-      .from(notificationsTable)
-      .where(
-        sql`${notificationsTable.recipientId} = ${req.user.id} AND ${notificationsTable.readAt} IS NULL`,
-      );
+    const [notifications, unreadResult] = await Promise.all([
+      db
+        .select()
+        .from(notificationsTable)
+        .where(eq(notificationsTable.recipientId, req.user.id))
+        .orderBy(desc(notificationsTable.createdAt))
+        .limit(50),
+      db
+        .select({ count: sql<number>`count(*)::int` })
+        .from(notificationsTable)
+        .where(
+          and(
+            eq(notificationsTable.recipientId, req.user.id),
+            sql`${notificationsTable.readAt} IS NULL`,
+          ),
+        ),
+    ]);
 
     res.json({
       notifications: notifications.map((n) => ({
@@ -36,7 +40,7 @@ router.get("/me/notifications", async (req: Request, res: Response) => {
         read: n.readAt !== null,
         createdAt: n.createdAt.toISOString(),
       })),
-      unreadCount: unreadResult?.count || 0,
+      unreadCount: unreadResult[0]?.count || 0,
     });
   } catch (err) {
     req.log.error({ err }, "Error getting notifications");
@@ -51,7 +55,7 @@ router.post("/me/notifications/:id/read", async (req: Request, res: Response) =>
   }
 
   const id = parseInt(req.params.id as string);
-  if (isNaN(id)) {
+  if (isNaN(id) || id < 1) {
     res.status(400).json({ error: "Invalid notification ID" });
     return;
   }
@@ -61,12 +65,39 @@ router.post("/me/notifications/:id/read", async (req: Request, res: Response) =>
       .update(notificationsTable)
       .set({ readAt: new Date() })
       .where(
-        sql`${notificationsTable.id} = ${id} AND ${notificationsTable.recipientId} = ${req.user.id}`,
+        and(
+          eq(notificationsTable.id, id),
+          eq(notificationsTable.recipientId, req.user.id),
+        ),
       );
 
     res.json({ success: true });
   } catch (err) {
     req.log.error({ err }, "Error marking notification as read");
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+router.post("/me/notifications/read-all", async (req: Request, res: Response) => {
+  if (!req.isAuthenticated()) {
+    res.status(401).json({ error: "Unauthorized" });
+    return;
+  }
+
+  try {
+    await db
+      .update(notificationsTable)
+      .set({ readAt: new Date() })
+      .where(
+        and(
+          eq(notificationsTable.recipientId, req.user.id),
+          sql`${notificationsTable.readAt} IS NULL`,
+        ),
+      );
+
+    res.json({ success: true });
+  } catch (err) {
+    req.log.error({ err }, "Error marking all notifications as read");
     res.status(500).json({ error: "Internal server error" });
   }
 });

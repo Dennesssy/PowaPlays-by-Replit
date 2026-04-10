@@ -133,11 +133,34 @@ router.get("/feedback", async (req: Request, res: Response) => {
   }
 });
 
+const VALID_FB_TYPES = new Set(["bug", "feature", "suggestion", "general"]);
+const VALID_FB_STATUSES = new Set(["open", "acknowledged", "in_progress", "resolved", "closed", "wont_fix"]);
+
 router.post("/feedback", async (req: Request, res: Response) => {
   const { type, title, body, projectId, email, name, url } = req.body;
 
   if (!type || !title || !body) {
     res.status(400).json({ error: "type, title, and body are required" });
+    return;
+  }
+
+  if (!VALID_FB_TYPES.has(type)) {
+    res.status(400).json({ error: "Invalid feedback type" });
+    return;
+  }
+
+  if (typeof title !== "string" || title.length > 500) {
+    res.status(400).json({ error: "Title too long (max 500 chars)" });
+    return;
+  }
+
+  if (typeof body !== "string" || body.length > 10000) {
+    res.status(400).json({ error: "Body too long (max 10000 chars)" });
+    return;
+  }
+
+  if (email && typeof email === "string" && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    res.status(400).json({ error: "Invalid email format" });
     return;
   }
 
@@ -258,35 +281,37 @@ router.get("/feedback/:id", async (req: Request, res: Response) => {
       responseConditions.push(eq(feedbackResponsesTable.isInternal, "false"));
     }
 
-    const responses = await db
-      .select({
-        id: feedbackResponsesTable.id,
-        feedbackId: feedbackResponsesTable.feedbackId,
-        body: feedbackResponsesTable.body,
-        isInternal: feedbackResponsesTable.isInternal,
-        newStatus: feedbackResponsesTable.newStatus,
-        createdAt: feedbackResponsesTable.createdAt,
-        authorName: usersTable.displayName,
-        authorRole: usersTable.role,
-      })
-      .from(feedbackResponsesTable)
-      .leftJoin(usersTable, eq(feedbackResponsesTable.authorId, usersTable.id))
-      .where(and(...responseConditions))
-      .orderBy(feedbackResponsesTable.createdAt);
+    const [responses, countResults, projectData] = await Promise.all([
+      db
+        .select({
+          id: feedbackResponsesTable.id,
+          feedbackId: feedbackResponsesTable.feedbackId,
+          body: feedbackResponsesTable.body,
+          isInternal: feedbackResponsesTable.isInternal,
+          newStatus: feedbackResponsesTable.newStatus,
+          createdAt: feedbackResponsesTable.createdAt,
+          authorName: usersTable.displayName,
+          authorRole: usersTable.role,
+        })
+        .from(feedbackResponsesTable)
+        .leftJoin(usersTable, eq(feedbackResponsesTable.authorId, usersTable.id))
+        .where(and(...responseConditions))
+        .orderBy(feedbackResponsesTable.createdAt)
+        .limit(200),
+      db
+        .select({ count: sql<number>`count(*)::int` })
+        .from(feedbackResponsesTable)
+        .where(eq(feedbackResponsesTable.feedbackId, id))
+        .then((rows) => rows[0]),
+      item.projectId
+        ? db
+            .select({ title: projectsTable.title })
+            .from(projectsTable)
+            .where(eq(projectsTable.id, item.projectId))
+        : Promise.resolve([]),
+    ]);
 
-    const [countResult] = await db
-      .select({ count: sql<number>`count(*)::int` })
-      .from(feedbackResponsesTable)
-      .where(eq(feedbackResponsesTable.feedbackId, id));
-
-    let projectTitle = null;
-    if (item.projectId) {
-      const [p] = await db
-        .select({ title: projectsTable.title })
-        .from(projectsTable)
-        .where(eq(projectsTable.id, item.projectId));
-      projectTitle = p?.title || null;
-    }
+    const projectTitle = projectData[0]?.title || null;
 
     res.json({
       feedback: {
@@ -301,7 +326,7 @@ router.get("/feedback/:id", async (req: Request, res: Response) => {
         projectId: item.projectId,
         projectTitle,
         assigneeName: item.assigneeName,
-        responseCount: countResult?.count || 0,
+        responseCount: countResults?.count || 0,
         resolvedAt: item.resolvedAt?.toISOString() || null,
         createdAt: item.createdAt.toISOString(),
         updatedAt: item.updatedAt.toISOString(),
@@ -333,8 +358,18 @@ router.post("/feedback/:id/respond", async (req: Request, res: Response) => {
   }
 
   const { body: responseBody, isInternal: isInternalNote, newStatus } = req.body;
-  if (!responseBody) {
+  if (!responseBody || typeof responseBody !== "string") {
     res.status(400).json({ error: "body is required" });
+    return;
+  }
+
+  if (responseBody.length > 10000) {
+    res.status(400).json({ error: "Response too long (max 10000 chars)" });
+    return;
+  }
+
+  if (newStatus && !VALID_FB_STATUSES.has(newStatus)) {
+    res.status(400).json({ error: "Invalid status" });
     return;
   }
 
@@ -441,8 +476,8 @@ router.patch("/feedback/:id/status", async (req: Request, res: Response) => {
   }
 
   const { status, assigneeId } = req.body;
-  if (!status) {
-    res.status(400).json({ error: "status is required" });
+  if (!status || !VALID_FB_STATUSES.has(status)) {
+    res.status(400).json({ error: "Valid status is required" });
     return;
   }
 

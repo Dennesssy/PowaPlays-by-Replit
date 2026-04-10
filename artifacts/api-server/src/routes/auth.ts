@@ -55,7 +55,7 @@ function getSafeReturnTo(value: unknown): string {
 async function upsertUser(claims: Record<string, unknown>) {
   const email = (claims.email as string) || null;
   const firstName = (claims.first_name as string) || null;
-  const username = email ? email.split("@")[0] : (claims.sub as string);
+  const username = (claims.username as string) || (email ? email.split("@")[0] : (claims.sub as string));
 
   const userData = {
     id: claims.sub as string,
@@ -78,6 +78,8 @@ async function upsertUser(claims: Record<string, unknown>) {
         email: userData.email,
         firstName: userData.firstName,
         lastName: userData.lastName,
+        username: userData.username,
+        displayName: userData.displayName,
         profileImageUrl: userData.profileImageUrl,
         updatedAt: new Date(),
       },
@@ -101,6 +103,18 @@ async function upsertUser(claims: Record<string, unknown>) {
     user.role = "admin";
   }
 
+  if (
+    email &&
+    email.toLowerCase().endsWith("@replit.com") &&
+    user.role === "user"
+  ) {
+    await db
+      .update(usersTable)
+      .set({ role: "admin" })
+      .where(eq(usersTable.id, user.id));
+    user.role = "admin";
+  }
+
   return user;
 }
 
@@ -112,8 +126,10 @@ router.get("/auth/user", (req: Request, res: Response) => {
         email: req.user.email,
         firstName: req.user.firstName,
         lastName: req.user.lastName,
+        username: req.user.username || null,
         profileImageUrl: req.user.profileImageUrl,
         role: req.user.role || "user",
+        onboardingCompleted: req.user.onboardingCompleted || false,
       },
     });
   } else {
@@ -204,8 +220,10 @@ router.get("/callback", async (req: Request, res: Response) => {
       email: dbUser.email,
       firstName: dbUser.firstName,
       lastName: dbUser.lastName,
+      username: dbUser.username,
       profileImageUrl: dbUser.profileImageUrl,
       role: dbUser.role,
+      onboardingCompleted: dbUser.onboardingCompleted,
     },
     access_token: tokens.access_token,
     refresh_token: tokens.refresh_token,
@@ -274,8 +292,10 @@ router.post(
           email: dbUser.email,
           firstName: dbUser.firstName,
           lastName: dbUser.lastName,
+          username: dbUser.username,
           profileImageUrl: dbUser.profileImageUrl,
           role: dbUser.role,
+          onboardingCompleted: dbUser.onboardingCompleted,
         },
         access_token: tokens.access_token,
         refresh_token: tokens.refresh_token,

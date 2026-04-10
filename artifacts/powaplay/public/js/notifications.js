@@ -2,11 +2,12 @@ window.Notifications = {
   _items: [],
   _unreadCount: 0,
   _pollInterval: null,
+  _pollBackoff: 30000,
 
   async init() {
     if (!Auth.user) return;
     await this.fetch();
-    this._pollInterval = setInterval(() => this.fetch(), 30000);
+    this._pollInterval = setInterval(() => this.fetch(), this._pollBackoff);
     this._render();
   },
 
@@ -53,10 +54,13 @@ window.Notifications = {
 
     list.innerHTML = this._items.map((n) => {
       const readClass = n.read ? 'notif-read' : 'notif-unread';
+      const safeTitle = escapeHtml(n.title || '');
+      const safeBody = n.body ? escapeHtml(n.body.slice(0, 100)) : '';
+      const safeUrl = n.actionUrl ? escapeHtml(n.actionUrl) : '';
       return `
-        <div class="notif-item ${readClass}" data-id="${n.id}" data-url="${n.actionUrl || ''}">
-          <div class="notif-title">${n.title}</div>
-          ${n.body ? `<div class="notif-body">${n.body.slice(0, 100)}</div>` : ''}
+        <div class="notif-item ${readClass}" data-id="${n.id}" data-url="${safeUrl}">
+          <div class="notif-title">${safeTitle}</div>
+          ${safeBody ? `<div class="notif-body">${safeBody}</div>` : ''}
           <div class="notif-time">${Feedback._timeAgo(n.createdAt)}</div>
         </div>
       `;
@@ -66,14 +70,18 @@ window.Notifications = {
       item.addEventListener('click', async () => {
         const id = parseInt(item.dataset.id);
         const url = item.dataset.url;
-        await API.markNotificationRead(id);
-        item.classList.remove('notif-unread');
-        item.classList.add('notif-read');
-        this._unreadCount = Math.max(0, this._unreadCount - 1);
-        this._updateBadge();
+        if (!item.classList.contains('notif-read')) {
+          await API.markNotificationRead(id);
+          item.classList.remove('notif-unread');
+          item.classList.add('notif-read');
+          this._unreadCount = Math.max(0, this._unreadCount - 1);
+          this._updateBadge();
+        }
         if (url) {
           document.getElementById('notif-panel').style.display = 'none';
-          Router.navigate(url);
+          if (url.startsWith('/')) {
+            Router.navigate(url);
+          }
         }
       });
     });

@@ -26,6 +26,8 @@ export const feedbackTable = pgTable("feedback", {
   index("IDX_feedback_type").on(table.type),
   index("IDX_feedback_submitter").on(table.submitterId),
   index("IDX_feedback_assignee").on(table.assigneeId),
+  index("IDX_feedback_project_id").on(table.projectId),
+  index("IDX_feedback_created_at").on(table.createdAt),
 ]);
 
 export type Feedback = typeof feedbackTable.$inferSelect;

@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { index, jsonb, pgTable, timestamp, varchar } from "drizzle-orm/pg-core";
+import { boolean, index, jsonb, pgTable, timestamp, varchar } from "drizzle-orm/pg-core";
 
 export const sessionsTable = pgTable(
   "sessions",
@@ -22,6 +22,7 @@ export const usersTable = pgTable("users", {
   profileImageUrl: varchar("profile_image_url"),
   publicProfileEnabled: varchar("public_profile_enabled").default("true"),
   role: varchar("role").notNull().default("user"),
+  onboardingCompleted: boolean("onboarding_completed").notNull().default(false),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });

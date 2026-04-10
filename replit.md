@@ -82,11 +82,81 @@ Key fields:
 
 ### Auth
 
-Replit Auth (OIDC PKCE). Username auto-generated from email prefix. Role field in session/user object.
+Replit Auth (OIDC PKCE). Username sourced from OIDC `username` claim (falls back to email prefix). Users with @replit.com emails are auto-promoted to admin role. Role field in session/user object. `onboardingCompleted` flag controls first-login modal.
+
+### Roles
+
+- `user` (default): Can see My Projects, import repls, view personal analytics
+- `admin`: Everything users see, plus Platform analytics tab (admin dashboard data)
+- `internal` (master): Everything admins see, plus Users tab (role management, view-as-user), System tab (APM, sync, alerts, audit)
+
+### Dashboard Tabs (role-gated)
+
+- **My Projects**: All authenticated users — project list with visibility toggle
+- **Import from Replit**: All authenticated users — fetches public repls from replit.com server-side
+- **Analytics**: All authenticated users — per-project views, favorites, feedback counts
+- **Platform**: Admin/Master only — platform-wide stats (projects, users, feedback, errors, alerts, APM)
+- **Users**: Master only — user list, role assignment, "view as user" analytics
+- **System**: Master only — live APM, sync health, alerts, audit log
 
 ### Design
 
 White/glass theme (godly.website inspired). Filter is a floating dark glassmorphism popup (not a persistent bar). Grid fills full viewport. Desktop: centered modal filter. Mobile: bottom sheet filter. Cmd+K keyboard shortcut to open filter. Font: Inter + JetBrains Mono. Accent for mobile pill nav: teal/green (#2ecca4). Search input border: teal accent.
+
+### Security & Performance Audit (Applied)
+
+**Backend Security (25 fixes)**:
+- CORS restricted to allowed origins in production (env `ALLOWED_ORIGINS`)
+- Security headers: X-Content-Type-Options, X-Frame-Options, X-XSS-Protection, Referrer-Policy, Permissions-Policy
+- Express body size limit: 1MB for JSON and URL-encoded
+- `x-powered-by` header disabled
+- Feedback validation: type whitelist, title max 500 chars, body max 10000 chars, email format check
+- Feedback response validation: body max 10000 chars, status whitelist
+- Project tags: validated as array, max 20 items, each max 50 chars
+- Project description max 5000 chars
+- Analytics events: event type whitelist, rate limiting per client+event
+- User management: cannot change own role, userId length validation
+- Repl import: username sanitization, URL encoding
+- Favorites: project existence check before favoriting
+- Search SQL injection prevention: special chars escaped in ILIKE patterns
+- Notification mark-read: uses proper AND conditions instead of raw SQL template
+
+**Performance (25 fixes)**:
+- `/me/projects`: added LIMIT/OFFSET pagination
+- `/users/:username/projects`: added LIMIT/OFFSET pagination
+- `/me/favorites`: added LIMIT/OFFSET pagination
+- `/admin/analytics`: all 6 queries parallelized with Promise.all
+- `projectAnalytics.ts`: 5 sequential queries parallelized with Promise.all
+- `/me/notifications`: list + unread count parallelized
+- `/admin/users`: list + count parallelized
+- `/feedback/:id`: responses + count + project lookup parallelized
+- Tags cache: 5-minute TTL in-memory cache
+- Repl cache: periodic cleanup of expired entries (60s interval)
+- Rate limit bucket cleanup: periodic gc for stale entries
+- UA parser cache: LRU-like cache (1000 entries)
+- DB indexes added: projects(owner_id), projects(is_public, is_hidden), projects(created_at), projects(favorite_count), feedback(project_id), feedback(created_at)
+- Repl fetch: 10-second AbortController timeout
+- Response limits on feedback responses (max 200 per thread)
+- Project analytics: 500 project limit per user query
+
+**API/URL Audit (25 fixes)**:
+- All API.js URL parameters use encodeURIComponent
+- API error handling: parses server JSON error messages instead of generic "HTTP {status}"
+- XSS: feedback.js _renderFeedbackRow uses escapeHtml on all dynamic fields
+- XSS: feedback.js showThread uses escapeHtml on title, type, status, names
+- XSS: feedback.js showAdminOverview uses escapeHtml on all user data
+- XSS: feedback.js inline onclick replaced with data attributes + event listeners
+- XSS: notifications.js uses escapeHtml on title, body, actionUrl
+- XSS: auth.js uses escapeHtml on user name and avatar URL
+- Notifications: actionUrl validated to start with "/" before navigating
+- Notification panel: skip redundant mark-read if already read
+- Feedback submit form: maxlength attributes on inputs
+- Feedback reply: button disabled during submission to prevent double-submit
+- Feedback submit: button disabled during submission
+- Mark-all-notifications-read endpoint added (POST /me/notifications/read-all)
+- Admin users endpoint returns pagination metadata (page, limit)
+- User search support in admin users endpoint
+- Notification ID validation: must be positive integer
 
 ### Express 5 Notes
 

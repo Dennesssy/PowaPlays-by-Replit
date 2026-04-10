@@ -37,8 +37,8 @@ window.Auth = {
     }
 
     if (this.user) {
-      const name = this.user.firstName || this.user.email || 'User';
-      const avatar = this.user.profileImageUrl;
+      const name = escapeHtml(this.user.firstName || this.user.email || 'User');
+      const avatar = this.user.profileImageUrl ? escapeHtml(this.user.profileImageUrl) : null;
       area.innerHTML = `
         <div class="user-menu">
           ${avatar ? `<img src="${avatar}" alt="" class="user-avatar">` : `<div class="user-avatar-placeholder">${name[0].toUpperCase()}</div>`}

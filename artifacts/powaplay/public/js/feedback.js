@@ -64,20 +64,24 @@ window.Feedback = {
 
       const statusFilter = document.getElementById('fb-status-filter');
       const typeFilter = document.getElementById('fb-type-filter');
+      let filterDebounce;
       const refilter = async () => {
-        const params = {};
-        if (statusFilter.value) params.status = statusFilter.value;
-        if (typeFilter.value) params.type = typeFilter.value;
-        const filtered = await API.listFeedback(params);
-        const list = document.getElementById('fb-list');
-        if (filtered.items.length === 0) {
-          list.innerHTML = '<p class="empty-state">No matching feedback.</p>';
-        } else {
-          list.innerHTML = filtered.items.map((i) => this._renderFeedbackRow(i)).join('');
-          list.querySelectorAll('.fb-row').forEach((row) => {
-            row.addEventListener('click', () => Router.navigate('/feedback/' + row.dataset.id));
-          });
-        }
+        clearTimeout(filterDebounce);
+        filterDebounce = setTimeout(async () => {
+          const params = {};
+          if (statusFilter.value) params.status = statusFilter.value;
+          if (typeFilter.value) params.type = typeFilter.value;
+          const filtered = await API.listFeedback(params);
+          const list = document.getElementById('fb-list');
+          if (filtered.items.length === 0) {
+            list.innerHTML = '<p class="empty-state">No matching feedback.</p>';
+          } else {
+            list.innerHTML = filtered.items.map((i) => this._renderFeedbackRow(i)).join('');
+            list.querySelectorAll('.fb-row').forEach((row) => {
+              row.addEventListener('click', () => Router.navigate('/feedback/' + row.dataset.id));
+            });
+          }
+        }, 150);
       };
       statusFilter.addEventListener('change', refilter);
       typeFilter.addEventListener('change', refilter);
@@ -87,24 +91,24 @@ window.Feedback = {
   },
 
   _renderFeedbackRow(item) {
-    const statusClass = 'status-' + item.status.replace('_', '-');
-    const statusLabel = item.status.replace('_', ' ');
+    const statusClass = 'status-' + (item.status || '').replace('_', '-');
+    const statusLabel = (item.status || '').replace('_', ' ');
     const typeIcon = { bug: 'B', feature: 'F', suggestion: 'S', general: 'G' }[item.type] || 'G';
     const age = this._timeAgo(item.createdAt);
 
     return `
-      <div class="fb-row" data-id="${item.id}">
-        <div class="fb-type-icon fb-type-${item.type}">${typeIcon}</div>
+      <div class="fb-row" data-id="${escapeHtml(String(item.id))}">
+        <div class="fb-type-icon fb-type-${escapeHtml(item.type || 'general')}">${typeIcon}</div>
         <div class="fb-row-main">
-          <div class="fb-row-title">${item.title}</div>
+          <div class="fb-row-title">${escapeHtml(item.title)}</div>
           <div class="fb-row-meta">
-            ${item.projectTitle ? `<span class="fb-project">${item.projectTitle}</span>` : ''}
-            <span class="fb-submitter">${item.submitterName || 'Anonymous'}</span>
+            ${item.projectTitle ? `<span class="fb-project">${escapeHtml(item.projectTitle)}</span>` : ''}
+            <span class="fb-submitter">${escapeHtml(item.submitterName || 'Anonymous')}</span>
             <span class="fb-age">${age}</span>
           </div>
         </div>
         <div class="fb-row-right">
-          <span class="fb-status ${statusClass}">${statusLabel}</span>
+          <span class="fb-status ${statusClass}">${escapeHtml(statusLabel)}</span>
           ${item.responseCount > 0 ? `<span class="fb-responses">${item.responseCount}</span>` : ''}
         </div>
       </div>
@@ -128,15 +132,15 @@ window.Feedback = {
         <button class="btn btn-ghost btn-sm fb-back" onclick="Router.navigate('/feedback')">&larr; Back</button>
         <div class="fb-thread-header">
           <div class="fb-thread-title-row">
-            <h2>${fb.title}</h2>
-            <span class="fb-status ${statusClass}">${fb.status.replace('_', ' ')}</span>
+            <h2>${escapeHtml(fb.title)}</h2>
+            <span class="fb-status ${statusClass}">${escapeHtml(fb.status.replace('_', ' '))}</span>
           </div>
           <div class="fb-thread-meta">
-            <span class="fb-type-badge fb-type-${fb.type}">${fb.type}</span>
-            ${fb.projectTitle ? `<span class="fb-project">${fb.projectTitle}</span>` : ''}
-            <span>by ${fb.submitterName || 'Anonymous'}</span>
+            <span class="fb-type-badge fb-type-${escapeHtml(fb.type)}">${escapeHtml(fb.type)}</span>
+            ${fb.projectTitle ? `<span class="fb-project">${escapeHtml(fb.projectTitle)}</span>` : ''}
+            <span>by ${escapeHtml(fb.submitterName || 'Anonymous')}</span>
             <span>${this._timeAgo(fb.createdAt)}</span>
-            ${fb.assigneeName ? `<span>Assigned: ${fb.assigneeName}</span>` : ''}
+            ${fb.assigneeName ? `<span>Assigned: ${escapeHtml(fb.assigneeName)}</span>` : ''}
           </div>
         </div>
         <div class="fb-thread-body">${this._escapeHtml(fb.body)}</div>
@@ -148,12 +152,12 @@ window.Feedback = {
         html += `
           <div class="fb-response ${roleClass} ${r.isInternal ? 'fb-resp-private' : ''}">
             <div class="fb-resp-header">
-              <span class="fb-resp-author">${r.authorName}</span>
+              <span class="fb-resp-author">${escapeHtml(r.authorName)}</span>
               ${r.authorRole === 'internal' || r.authorRole === 'admin' ? '<span class="fb-badge-internal">INTERNAL</span>' : ''}
               ${r.isInternal ? '<span class="fb-badge-private">PRIVATE NOTE</span>' : ''}
               <span class="fb-resp-time">${this._timeAgo(r.createdAt)}</span>
             </div>
-            ${r.newStatus ? `<div class="fb-resp-status">Status changed to <strong>${r.newStatus.replace('_', ' ')}</strong></div>` : ''}
+            ${r.newStatus ? `<div class="fb-resp-status">Status changed to <strong>${escapeHtml(r.newStatus.replace('_', ' '))}</strong></div>` : ''}
             <div class="fb-resp-body">${this._escapeHtml(r.body)}</div>
           </div>
         `;
@@ -164,7 +168,7 @@ window.Feedback = {
       if (canRespond) {
         html += `
           <div class="fb-reply-form">
-            <textarea id="fb-reply-body" class="fb-textarea" placeholder="Write a response..." rows="3"></textarea>
+            <textarea id="fb-reply-body" class="fb-textarea" placeholder="Write a response..." rows="3" maxlength="10000"></textarea>
             <div class="fb-reply-actions">
               ${canChangeStatus ? `
                 <select id="fb-reply-status" class="fb-select">
@@ -192,6 +196,9 @@ window.Feedback = {
         document.getElementById('fb-reply-submit').addEventListener('click', async () => {
           const body = document.getElementById('fb-reply-body').value.trim();
           if (!body) return;
+          const btn = document.getElementById('fb-reply-submit');
+          btn.disabled = true;
+          btn.textContent = 'Sending...';
           const statusEl = document.getElementById('fb-reply-status');
           const internalEl = document.getElementById('fb-reply-internal');
           const payload = { body };
@@ -202,6 +209,8 @@ window.Feedback = {
             await API.respondToFeedback(id, payload);
             this.showThread(id);
           } catch (err) {
+            btn.disabled = false;
+            btn.textContent = 'Reply';
             console.error('Failed to respond:', err);
           }
         });
@@ -216,10 +225,11 @@ window.Feedback = {
     overlay.style.display = '';
     document.body.style.overflow = 'hidden';
 
+    const safeProjectTitle = projectTitle ? escapeHtml(projectTitle) : '';
     const form = document.getElementById('fb-submit-form');
     form.innerHTML = `
       <h2>Submit Feedback</h2>
-      ${projectTitle ? `<p class="fb-submit-project">About: ${projectTitle}</p>` : ''}
+      ${safeProjectTitle ? `<p class="fb-submit-project">About: ${safeProjectTitle}</p>` : ''}
       <div class="fb-field">
         <label>Type</label>
         <select id="fb-submit-type" class="fb-select">
@@ -231,20 +241,20 @@ window.Feedback = {
       </div>
       <div class="fb-field">
         <label>Title</label>
-        <input type="text" id="fb-submit-title" class="fb-input" placeholder="Brief summary..." required>
+        <input type="text" id="fb-submit-title" class="fb-input" placeholder="Brief summary..." required maxlength="500">
       </div>
       <div class="fb-field">
         <label>Details</label>
-        <textarea id="fb-submit-body" class="fb-textarea" placeholder="Describe in detail..." rows="5" required></textarea>
+        <textarea id="fb-submit-body" class="fb-textarea" placeholder="Describe in detail..." rows="5" required maxlength="10000"></textarea>
       </div>
       ${!Auth.user ? `
         <div class="fb-field">
           <label>Your Name (optional)</label>
-          <input type="text" id="fb-submit-name" class="fb-input" placeholder="Your name">
+          <input type="text" id="fb-submit-name" class="fb-input" placeholder="Your name" maxlength="100">
         </div>
         <div class="fb-field">
           <label>Email (optional, for follow-ups)</label>
-          <input type="email" id="fb-submit-email" class="fb-input" placeholder="your@email.com">
+          <input type="email" id="fb-submit-email" class="fb-input" placeholder="your@email.com" maxlength="254">
         </div>
       ` : ''}
       <div class="fb-submit-actions">
@@ -261,6 +271,7 @@ window.Feedback = {
       const body = document.getElementById('fb-submit-body').value.trim();
       const type = document.getElementById('fb-submit-type').value;
       const statusEl = document.getElementById('fb-submit-status');
+      const btn = document.getElementById('fb-submit-send');
 
       if (!title || !body) {
         statusEl.textContent = 'Please fill in the title and details.';
@@ -277,6 +288,7 @@ window.Feedback = {
       }
 
       try {
+        btn.disabled = true;
         statusEl.textContent = 'Submitting...';
         statusEl.className = '';
         await API.submitFeedback(payload);
@@ -284,7 +296,8 @@ window.Feedback = {
         statusEl.className = 'fb-submit-success';
         setTimeout(() => this.hideSubmitForm(), 1500);
       } catch (err) {
-        statusEl.textContent = 'Failed to submit. Please try again.';
+        btn.disabled = false;
+        statusEl.textContent = err.message || 'Failed to submit. Please try again.';
         statusEl.className = 'fb-submit-error';
       }
     });
@@ -327,10 +340,10 @@ window.Feedback = {
         `;
         neglected.forEach((u) => {
           html += `
-            <div class="neglected-user" data-owner="${u.ownerId}">
-              <span class="neglected-name">${u.displayName || u.username}</span>
+            <div class="neglected-user" data-owner="${escapeHtml(u.ownerId)}">
+              <span class="neglected-name">${escapeHtml(u.displayName || u.username)}</span>
               <span class="neglected-count">${u.openCount} open</span>
-              <button class="btn btn-ghost btn-sm" onclick="Feedback.viewUserFeedback('${u.ownerId}', '${u.username}')">View</button>
+              <button class="btn btn-ghost btn-sm neglected-view-btn" data-oid="${escapeHtml(u.ownerId)}" data-uname="${escapeHtml(u.username)}">View</button>
             </div>
           `;
         });
@@ -356,21 +369,27 @@ window.Feedback = {
         html += `
           <div class="admin-table-row">
             <span class="admin-user-cell">
-              ${u.avatar ? `<img src="${u.avatar}" class="admin-user-avatar">` : ''}
-              <span>${u.displayName || u.username}</span>
+              ${u.avatar ? `<img src="${escapeHtml(u.avatar)}" class="admin-user-avatar">` : ''}
+              <span>${escapeHtml(u.displayName || u.username)}</span>
             </span>
             <span>${u.totalFeedback}</span>
             <span class="${u.openFeedback > 0 ? 'text-warn' : ''}">${u.openFeedback}</span>
             <span>${u.resolvedFeedback}</span>
             <span class="${rateClass}">${u.responseRate}%</span>
             <span>${u.avgResponseTimeHours > 0 ? u.avgResponseTimeHours + 'h' : '--'}</span>
-            <span><button class="btn btn-ghost btn-sm" onclick="Feedback.viewUserFeedback('${u.ownerId}', '${u.username}')">Details</button></span>
+            <span><button class="btn btn-ghost btn-sm details-view-btn" data-oid="${escapeHtml(u.ownerId)}" data-uname="${escapeHtml(u.username)}">Details</button></span>
           </div>
         `;
       });
 
       html += '</div>';
       container.innerHTML = html;
+
+      container.querySelectorAll('.neglected-view-btn, .details-view-btn').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          Feedback.viewUserFeedback(btn.dataset.oid, btn.dataset.uname);
+        });
+      });
     } catch (err) {
       container.innerHTML = '<p class="error-state">Failed to load admin overview.</p>';
     }
@@ -386,7 +405,7 @@ window.Feedback = {
 
       let html = `
         <button class="btn btn-ghost btn-sm fb-back" onclick="Feedback.showAdminOverview()">&larr; Back to Overview</button>
-        <h3>Feedback for @${username}'s projects</h3>
+        <h3>Feedback for @${escapeHtml(username)}'s projects</h3>
         <div class="feedback-list">
       `;
 
@@ -413,6 +432,7 @@ window.Feedback = {
   _timeAgo(dateStr) {
     const now = Date.now();
     const then = new Date(dateStr).getTime();
+    if (isNaN(then)) return '';
     const diff = now - then;
     const mins = Math.floor(diff / 60000);
     if (mins < 1) return 'just now';

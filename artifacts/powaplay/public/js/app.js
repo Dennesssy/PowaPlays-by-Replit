@@ -27,8 +27,7 @@ window.App = {
     this._setupHeroModal();
 
     Auth.onChange(() => {
-      this._updateAdminNav();
-      this._updateMobileLoginBtn();
+      this._updateNavForAuth();
       if (Router._current === '/dashboard') this._showDashboard();
       if (Router._current === '/feedback') Feedback.showInbox();
       if (Router._current === '/admin') Feedback.showAdminOverview();
@@ -50,21 +49,61 @@ window.App = {
     return sid;
   },
 
-  _updateAdminNav() {
-    const adminLink = document.querySelector('.nav-admin');
-    if (adminLink && Auth.user && (Auth.user.role === 'internal' || Auth.user.role === 'admin')) {
-      adminLink.style.display = '';
+  _updateNavForAuth() {
+    const isLoggedIn = !!Auth.user;
+    const isAdmin = isLoggedIn && (Auth.user.role === 'internal' || Auth.user.role === 'admin');
+    const isMaster = isLoggedIn && Auth.user.role === 'internal';
+
+    document.querySelectorAll('.nav-authed').forEach(el => el.style.display = isLoggedIn ? '' : 'none');
+    document.querySelectorAll('.nav-admin').forEach(el => el.style.display = isAdmin ? '' : 'none');
+    document.querySelectorAll('.nav-visitor').forEach(el => el.style.display = isLoggedIn ? 'none' : '');
+    document.querySelectorAll('.nav-authed-only').forEach(el => el.style.display = isLoggedIn ? '' : 'none');
+
+    const profileBtn = document.getElementById('mobile-nav-profile');
+    const lightningBtn = document.getElementById('mobile-nav-lightning');
+    const projectsBtn = document.getElementById('mobile-projects-btn');
+    const feedbackBtn = document.getElementById('mobile-feedback-btn');
+    const loginPill = document.getElementById('mobile-login-pill');
+    const adminBtn = document.getElementById('mobile-nav-admin');
+    const loginBtn = document.getElementById('mobile-login-btn');
+
+    if (profileBtn) profileBtn.style.display = isLoggedIn ? '' : 'none';
+    if (lightningBtn) lightningBtn.style.display = isLoggedIn ? 'none' : '';
+    if (projectsBtn) projectsBtn.style.display = isLoggedIn ? '' : 'none';
+    if (feedbackBtn) feedbackBtn.style.display = isLoggedIn ? 'none' : '';
+    if (loginPill) loginPill.style.display = isLoggedIn ? 'none' : '';
+    if (adminBtn) adminBtn.style.display = isAdmin ? '' : 'none';
+    if (loginBtn) {
+      if (isLoggedIn) {
+        loginBtn.querySelector('#mobile-login-text').textContent = Auth.user.firstName || 'Projects';
+      } else {
+        loginBtn.querySelector('#mobile-login-text').textContent = 'Log In';
+      }
+    }
+
+    if (isLoggedIn && !Auth.user.onboardingCompleted) {
+      this._showOnboardingModal();
     }
   },
 
-  _updateMobileLoginBtn() {
-    const textEl = document.getElementById('mobile-login-text');
-    if (!textEl) return;
-    if (Auth.user) {
-      textEl.textContent = Auth.user.firstName || 'Projects';
-    } else {
-      textEl.textContent = 'Log In';
-    }
+  _showOnboardingModal() {
+    const modal = document.getElementById('onboarding-modal');
+    if (!modal) return;
+    modal.style.display = '';
+
+    const closeBtn = document.getElementById('onboarding-close');
+    const doneBtn = document.getElementById('onboarding-done-btn');
+    const backdrop = document.getElementById('onboarding-backdrop');
+
+    const dismiss = () => {
+      modal.style.display = 'none';
+      API.completeOnboarding().catch(() => {});
+      if (Auth.user) Auth.user.onboardingCompleted = true;
+    };
+
+    if (closeBtn) closeBtn.onclick = dismiss;
+    if (doneBtn) doneBtn.onclick = dismiss;
+    if (backdrop) backdrop.onclick = dismiss;
   },
 
   async _loadTagsAndBuildFilters() {
@@ -421,20 +460,62 @@ window.App = {
     }
   },
 
+  _dashCurrentTab: 'projects',
+
   async _showDashboard() {
     this._showPage('dashboard');
     const gate = document.getElementById('dashboard-auth-gate');
     const content = document.getElementById('dashboard-content');
 
     if (!Auth.user) {
-      gate.style.display = '';
-      content.style.display = 'none';
+      if (!Auth._loading) {
+        window.location.href = '/api/login?returnTo=/dashboard';
+      } else {
+        gate.style.display = '';
+        content.style.display = 'none';
+      }
       return;
     }
 
     gate.style.display = 'none';
     content.style.display = '';
 
+    const isAdmin = Auth.user.role === 'internal' || Auth.user.role === 'admin';
+    const isMaster = Auth.user.role === 'internal';
+
+    document.querySelectorAll('.dash-tab-admin').forEach(el => el.style.display = isAdmin ? '' : 'none');
+    document.querySelectorAll('.dash-tab-master').forEach(el => el.style.display = isMaster ? '' : 'none');
+
+    this._setupDashboardTabs();
+    this._switchDashTab('projects');
+  },
+
+  _setupDashboardTabs() {
+    const tabs = document.querySelectorAll('#dashboard-tabs .dash-tab');
+    tabs.forEach(tab => {
+      tab.onclick = () => {
+        tabs.forEach(t => t.classList.remove('active'));
+        tab.classList.add('active');
+        this._switchDashTab(tab.dataset.dtab);
+      };
+    });
+  },
+
+  _switchDashTab(tab) {
+    this._dashCurrentTab = tab;
+    document.querySelectorAll('.dash-panel').forEach(p => p.style.display = 'none');
+    const panel = document.getElementById('dash-panel-' + tab);
+    if (panel) panel.style.display = '';
+
+    if (tab === 'projects') this._loadDashProjects();
+    else if (tab === 'import') this._loadImportRepls();
+    else if (tab === 'analytics') this._loadMyAnalytics();
+    else if (tab === 'platform') this._loadPlatformAnalytics();
+    else if (tab === 'users') this._loadUserManagement();
+    else if (tab === 'system') this._loadSystemDashboard();
+  },
+
+  async _loadDashProjects() {
     const list = document.getElementById('dashboard-list');
     const stats = document.getElementById('dashboard-stats');
     list.innerHTML = '<div class="loading">Loading projects...</div>';
@@ -452,7 +533,7 @@ window.App = {
       `;
 
       if (projects.length === 0) {
-        list.innerHTML = '<p class="empty-state">No projects yet. Create something on Replit and it will appear here.</p>';
+        list.innerHTML = '<p class="empty-state">No projects yet. Import from Replit to get started!</p>';
         return;
       }
 
@@ -498,6 +579,401 @@ window.App = {
     } catch (err) {
       list.innerHTML = '<p class="error-state">Failed to load projects.</p>';
     }
+  },
+
+  async _loadImportRepls() {
+    const container = document.getElementById('import-repl-list');
+    container.innerHTML = '<div class="loading">Fetching your public Repls from Replit...</div>';
+
+    try {
+      const data = await API.getMyRepls();
+      const repls = data.repls || [];
+
+      if (repls.length === 0) {
+        container.innerHTML = `
+          <div class="empty-state">
+            <p>No public Repls found for @${escapeHtml(data.username || Auth.user.username || '')}.</p>
+            <p>Make sure you have public Repls on <a href="https://replit.com/@${escapeHtml(data.username || '')}" target="_blank" rel="noopener">your Replit profile</a>.</p>
+          </div>
+        `;
+        return;
+      }
+
+      container.innerHTML = `<p class="import-header">Found ${repls.length} public Repl${repls.length !== 1 ? 's' : ''} for @${escapeHtml(data.username || '')}</p>`;
+      repls.forEach((r) => {
+        const row = document.createElement('div');
+        row.className = 'import-row' + (r.imported ? ' imported' : '');
+        row.innerHTML = `
+          <div class="import-icon">${r.iconUrl ? `<img src="${escapeHtml(r.iconUrl)}" alt="">` : `<div class="import-icon-placeholder">${escapeHtml((r.title || 'R')[0])}</div>`}</div>
+          <div class="import-info">
+            <div class="import-title">${escapeHtml(r.title)}</div>
+            <div class="import-desc">${r.description ? escapeHtml(r.description).slice(0, 100) : '<span class="text-muted">No description</span>'}</div>
+          </div>
+          <div class="import-action">
+            ${r.imported
+              ? '<a href="/dashboard" class="import-status-done">Manage &rarr;</a>'
+              : `<button class="btn btn-sm btn-primary import-btn">Import</button>`
+            }
+          </div>
+        `;
+
+        if (!r.imported) {
+          const btn = row.querySelector('.import-btn');
+          btn.addEventListener('click', async () => {
+            btn.textContent = 'Importing...';
+            btn.disabled = true;
+            try {
+              await API.importRepl({
+                replId: r.id,
+                slug: r.slug,
+              });
+              btn.outerHTML = '<a href="/dashboard" class="import-status-done">Manage &rarr;</a>';
+              row.classList.add('imported');
+            } catch (err) {
+              btn.textContent = 'Failed';
+              setTimeout(() => { btn.textContent = 'Import'; btn.disabled = false; }, 2000);
+            }
+          });
+        }
+
+        container.appendChild(row);
+      });
+    } catch (err) {
+      container.innerHTML = '<p class="error-state">Failed to fetch Repls. Please try again.</p>';
+    }
+  },
+
+  async _loadMyAnalytics() {
+    const container = document.getElementById('analytics-content');
+    container.innerHTML = '<div class="loading">Loading analytics...</div>';
+
+    try {
+      const data = await API.getMyProjectAnalytics();
+      const summary = data.summary || {};
+      const projects = data.projects || [];
+
+      const trends = data.trends || { views: [], favorites: [] };
+
+      container.innerHTML = `
+        <div class="dashboard-stats">
+          <div class="stat-card"><span class="stat-value">${summary.totalProjects || 0}</span><span class="stat-label">Projects</span></div>
+          <div class="stat-card"><span class="stat-value">${summary.visibleCount || 0}</span><span class="stat-label">Visible</span></div>
+          <div class="stat-card"><span class="stat-value">${summary.totalFavorites || 0}</span><span class="stat-label">Favorites</span></div>
+          <div class="stat-card"><span class="stat-value">${summary.totalViews || 0}</span><span class="stat-label">Views</span></div>
+        </div>
+        ${trends.views.length > 0 || trends.favorites.length > 0 ? `
+          <div class="trends-section">
+            <h4 class="trends-title">Last 30 Days</h4>
+            <div class="trends-grid">
+              <div class="trend-chart">
+                <div class="trend-chart-label">Views</div>
+                <div class="trend-bars" id="trend-views-bars"></div>
+              </div>
+              <div class="trend-chart">
+                <div class="trend-chart-label">Favorites</div>
+                <div class="trend-bars" id="trend-favs-bars"></div>
+              </div>
+            </div>
+          </div>
+        ` : ''}
+        <div class="analytics-project-list" id="analytics-project-list"></div>
+      `;
+
+      if (trends.views.length > 0) {
+        this._renderTrendBars('trend-views-bars', trends.views);
+      }
+      if (trends.favorites.length > 0) {
+        this._renderTrendBars('trend-favs-bars', trends.favorites);
+      }
+
+      const listEl = document.getElementById('analytics-project-list');
+      if (projects.length === 0) {
+        listEl.innerHTML = '<p class="empty-state">No project analytics yet.</p>';
+        return;
+      }
+
+      listEl.innerHTML = projects.map(p => `
+        <div class="analytics-row">
+          <div class="analytics-row-title">${escapeHtml(p.title)}</div>
+          <div class="analytics-row-metrics">
+            <span class="analytics-metric"><strong>${p.views}</strong> views</span>
+            <span class="analytics-metric"><strong>${p.favoriteCount}</strong> favs</span>
+            <span class="analytics-metric"><strong>${p.feedbackCount}</strong> feedback</span>
+          </div>
+        </div>
+      `).join('');
+    } catch (err) {
+      container.innerHTML = '<p class="error-state">Failed to load analytics.</p>';
+    }
+  },
+
+  async _loadPlatformAnalytics() {
+    const container = document.getElementById('platform-analytics-content');
+    container.innerHTML = '<div class="loading">Loading platform analytics...</div>';
+
+    try {
+      const [data, analytics, growth] = await Promise.all([
+        API.get('/api/admin/dashboard?period=7d'),
+        API.get('/api/admin/analytics?period=7d').catch(() => ({})),
+        API.get('/api/admin/users/growth?days=30').catch(() => ({})),
+      ]);
+      const apm = data.apm || {};
+      const topProjects = analytics.topProjects || [];
+      const fb = analytics.feedbackCounts || {};
+      const growthRows = growth.growth || [];
+
+      const maxGrowth = Math.max(1, ...growthRows.map(r => r.count));
+      const growthBars = growthRows.length > 0
+        ? growthRows.map(r => {
+          const pct = Math.round((r.count / maxGrowth) * 100);
+          const label = new Date(r.day).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+          return `<div class="growth-bar-wrap" title="${label}: ${r.count} new users"><div class="growth-bar" style="height:${pct}%"></div><span class="growth-bar-val">${r.count}</span></div>`;
+        }).join('')
+        : '<p class="empty-state">No user registration data yet.</p>';
+
+      const feedbackTotal = (fb.open || 0) + (fb.acknowledged || 0) + (fb.in_progress || 0) + (fb.resolved || 0) + (fb.closed || 0) || 1;
+      const fbBreakdown = ['open', 'in_progress', 'resolved', 'closed'].map(s => {
+        const count = fb[s] || 0;
+        const pct = Math.round((count / feedbackTotal) * 100);
+        return `<div class="fb-status-row"><span class="fb-status-label">${s.replace('_', ' ')}</span><div class="fb-status-bar-bg"><div class="fb-status-bar" style="width:${pct}%"></div></div><span class="fb-status-count">${count}</span></div>`;
+      }).join('');
+
+      container.innerHTML = `
+        <div class="admin-grid">
+          ${this._metricCard('Total Projects', data.projects.total, data.projects.synced + ' synced')}
+          ${this._metricCard('Total Users', data.users.total, data.users.admins + ' admins')}
+          ${this._metricCard('Feedback', data.feedback.total, data.feedback.open + ' open')}
+          ${this._metricCard('Errors (7d)', data.errors.recent, data.errors.unresolved + ' unresolved')}
+          ${this._metricCard('Active Alerts', data.alerts.active, data.alerts.critical + ' critical')}
+          ${this._metricCard('Requests', apm.requestCount || 0, apm.errorRate + '% error rate')}
+          ${this._metricCard('Avg Latency', (apm.avgLatencyMs || 0) + 'ms', 'P95: ' + (apm.p95Ms || 0) + 'ms')}
+          ${this._metricCard('Memory', (apm.memoryMb || 0) + 'MB', 'RSS: ' + (apm.rssMemoryMb || 0) + 'MB')}
+        </div>
+        <h3>User Growth (30 days)</h3>
+        <div class="growth-chart">${growthBars}</div>
+        <h3>Top Projects (7d)</h3>
+        ${topProjects.length === 0
+          ? '<p class="empty-state">No project view data yet.</p>'
+          : `<div class="top-projects-list">${topProjects.map((p, i) => `
+            <div class="analytics-row">
+              <span class="analytics-rank">#${i + 1}</span>
+              <div class="analytics-row-title">${escapeHtml(p.title || 'Untitled')}</div>
+              <div class="analytics-row-metrics">
+                <span class="analytics-metric"><strong>${p.views}</strong> views</span>
+              </div>
+            </div>`).join('')}</div>`}
+        <h3>Feedback Breakdown</h3>
+        <div class="fb-breakdown">${fbBreakdown}</div>
+      `;
+    } catch (err) {
+      container.innerHTML = '<p class="error-state">Failed to load platform analytics.</p>';
+    }
+  },
+
+  async _loadUserManagement() {
+    const container = document.getElementById('users-management-content');
+    container.innerHTML = '<div class="loading">Loading users...</div>';
+
+    try {
+      const data = await API.getAdminUsers({ limit: 50 });
+      const users = data.users || [];
+
+      container.innerHTML = `
+        <div class="user-mgmt-header">
+          <h3>${data.total} users total</h3>
+          <div id="view-as-user-section" class="view-as-section">
+            <label>View analytics as user:</label>
+            <select id="view-as-user-select" class="view-as-select">
+              <option value="">Select a user...</option>
+              ${users.map(u => `<option value="${escapeHtml(u.id)}">${escapeHtml(u.displayName || u.username || u.email || u.id)}</option>`).join('')}
+            </select>
+            <div id="view-as-analytics" style="margin-top:12px"></div>
+          </div>
+        </div>
+        <div class="user-list" id="user-list"></div>
+      `;
+
+      const viewAsSelect = document.getElementById('view-as-user-select');
+      viewAsSelect.addEventListener('change', async () => {
+        const userId = viewAsSelect.value;
+        const analyticsEl = document.getElementById('view-as-analytics');
+        if (!userId) { analyticsEl.innerHTML = ''; return; }
+        analyticsEl.innerHTML = '<div class="loading">Loading user analytics...</div>';
+        try {
+          const uData = await API.getUserAnalytics(userId);
+          const s = uData.summary || {};
+          analyticsEl.innerHTML = `
+            <div class="dashboard-stats">
+              <div class="stat-card"><span class="stat-value">${s.totalProjects || 0}</span><span class="stat-label">Projects</span></div>
+              <div class="stat-card"><span class="stat-value">${s.totalViews || 0}</span><span class="stat-label">Views</span></div>
+              <div class="stat-card"><span class="stat-value">${s.totalFavorites || 0}</span><span class="stat-label">Favorites</span></div>
+              <div class="stat-card"><span class="stat-value">${s.totalFeedback || 0}</span><span class="stat-label">Feedback</span></div>
+            </div>
+            ${(uData.projects || []).map(p => `
+              <div class="analytics-row">
+                <div class="analytics-row-title">${escapeHtml(p.title)}</div>
+                <div class="analytics-row-metrics">
+                  <span class="analytics-metric"><strong>${p.views}</strong> views</span>
+                  <span class="analytics-metric"><strong>${p.favoriteCount}</strong> favs</span>
+                  <span class="analytics-metric"><strong>${p.feedbackCount}</strong> feedback</span>
+                </div>
+              </div>
+            `).join('')}
+          `;
+        } catch (err) {
+          analyticsEl.innerHTML = '<p class="error-state">Failed to load user analytics.</p>';
+        }
+      });
+
+      const listEl = document.getElementById('user-list');
+      listEl.innerHTML = users.map(u => `
+        <div class="user-row">
+          <div class="user-row-info">
+            ${u.profileImageUrl ? `<img src="${escapeHtml(u.profileImageUrl)}" alt="" class="user-row-avatar">` : `<div class="user-row-avatar-ph">${escapeHtml((u.displayName || u.username || 'U')[0].toUpperCase())}</div>`}
+            <div>
+              <div class="user-row-name">${escapeHtml(u.displayName || u.username || 'Unknown')}</div>
+              <div class="user-row-email">${escapeHtml(u.email || '')}</div>
+            </div>
+          </div>
+          <div class="user-row-role">
+            <select class="role-select" data-uid="${escapeHtml(u.id)}">
+              <option value="user" ${u.role === 'user' ? 'selected' : ''}>User</option>
+              <option value="admin" ${u.role === 'admin' ? 'selected' : ''}>Admin</option>
+              <option value="internal" ${u.role === 'internal' ? 'selected' : ''}>Master</option>
+            </select>
+          </div>
+        </div>
+      `).join('');
+
+      listEl.querySelectorAll('.role-select').forEach(sel => {
+        sel.dataset.original = sel.value;
+        sel.addEventListener('change', async () => {
+          const prev = sel.dataset.original;
+          try {
+            await API.updateUserRole(sel.dataset.uid, sel.value);
+            sel.dataset.original = sel.value;
+          } catch (err) {
+            sel.value = prev;
+          }
+        });
+      });
+    } catch (err) {
+      container.innerHTML = '<p class="error-state">Failed to load users.</p>';
+    }
+  },
+
+  async _loadSystemDashboard() {
+    const container = document.getElementById('system-dashboard-content');
+    container.innerHTML = '<div class="loading">Loading system data...</div>';
+
+    try {
+      const [live, health, alerts, audit, errors] = await Promise.all([
+        API.get('/api/admin/apm/live'),
+        API.get('/api/admin/sync/health'),
+        API.get('/api/admin/alerts?limit=20'),
+        API.get('/api/admin/audit?limit=20'),
+        API.get('/api/admin/errors/fingerprints?limit=15').catch(() => ({ errors: [] })),
+      ]);
+
+      const healthClass = 'health-' + (health.health || 'unknown');
+      const errorList = errors.errors || [];
+
+      const errFingerprints = errorList.length === 0
+        ? '<p class="empty-state">No errors recorded.</p>'
+        : `<div class="error-fingerprint-list">${errorList.map(e => `
+          <div class="error-fp-row">
+            <span class="error-fp-level error-level-${escapeHtml(e.level || 'error')}">${escapeHtml(e.level || 'error')}</span>
+            <span class="error-fp-msg" title="${escapeHtml(e.message || '')}">${escapeHtml((e.message || '').slice(0, 80))}${(e.message || '').length > 80 ? '…' : ''}</span>
+            <span class="error-fp-count" title="occurrences">${e.occurrences}×</span>
+            <button class="btn btn-ghost btn-xs error-fp-resolve" data-fp="${escapeHtml(e.fingerprint || '')}" ${e.resolvedAt ? 'disabled' : ''}>${e.resolvedAt ? 'Resolved' : 'Resolve'}</button>
+          </div>`).join('')}</div>`;
+
+      const sysConfig = `
+        <div class="sys-config-grid">
+          <div class="sys-config-row"><span class="sys-config-key">Environment</span><span class="sys-config-val">${escapeHtml(typeof process !== 'undefined' ? 'production' : 'development')}</span></div>
+          <div class="sys-config-row"><span class="sys-config-key">Sync Interval</span><span class="sys-config-val">1 hour</span></div>
+          <div class="sys-config-row"><span class="sys-config-key">Cache TTL</span><span class="sys-config-val">5 minutes</span></div>
+          <div class="sys-config-row"><span class="sys-config-key">Rate Limit</span><span class="sys-config-val">100 req/min per IP</span></div>
+          <div class="sys-config-row"><span class="sys-config-key">Body Limit</span><span class="sys-config-val">1 MB</span></div>
+          <div class="sys-config-row"><span class="sys-config-key">Session</span><span class="sys-config-val">HTTP-only cookie</span></div>
+        </div>`;
+
+      container.innerHTML = `
+        <h3>APM Live</h3>
+        <div class="admin-grid">
+          ${this._metricCard('Requests', live.requestCount, 'since flush')}
+          ${this._metricCard('Error Rate', live.errorRate + '%', live.errorCount + ' errors')}
+          ${this._metricCard('Avg Latency', live.avgLatencyMs + 'ms', '')}
+          ${this._metricCard('P50', live.p50Ms + 'ms', '')}
+          ${this._metricCard('P95', live.p95Ms + 'ms', '')}
+          ${this._metricCard('P99', live.p99Ms + 'ms', '')}
+          ${this._metricCard('Heap', live.memoryMb + 'MB', '')}
+          ${this._metricCard('RSS', live.rssMemoryMb + 'MB', '')}
+        </div>
+        <h3>Sync Health: <span class="admin-health-indicator ${healthClass}">${escapeHtml(health.health || 'unknown')}</span></h3>
+        ${health.latestRun ? `<p>Last run: ${escapeHtml(health.latestRun.status)} - ${health.latestRun.recordsFetched} fetched, ${health.latestRun.recordsInserted} new</p>` : '<p>No sync runs yet.</p>'}
+        <h3>Error Fingerprinting (${errorList.length} unique)</h3>
+        ${errFingerprints}
+        <h3>Active Alerts (${(alerts.alerts || []).length})</h3>
+        <div class="system-alerts-list">
+          ${(alerts.alerts || []).length === 0 ? '<p class="empty-state">No active alerts.</p>' :
+            (alerts.alerts || []).map(a => `
+              <div class="admin-alert-row">
+                <span class="alert-severity alert-${escapeHtml(a.severity)}">${escapeHtml(a.severity)}</span>
+                <span style="flex:1;font-weight:600">${escapeHtml(a.title)}</span>
+                <span style="color:var(--text-muted);font-size:12px">${escapeHtml(a.category)}</span>
+              </div>
+            `).join('')}
+        </div>
+        <h3>Recent Audit Log</h3>
+        <div class="system-audit-list">
+          ${(audit.entries || []).length === 0 ? '<p class="empty-state">No audit entries.</p>' :
+            (audit.entries || []).map(e => `
+              <div class="admin-audit-row">
+                <span class="audit-action">${escapeHtml(e.action)}</span>
+                <span>${escapeHtml(e.resource)}${e.resourceId ? ' #' + escapeHtml(e.resourceId) : ''}</span>
+                <span style="color:var(--text-muted)">${escapeHtml(e.actorRole || 'anon')}</span>
+              </div>
+            `).join('')}
+        </div>
+        <h3>System Configuration</h3>
+        ${sysConfig}
+      `;
+
+      container.querySelectorAll('.error-fp-resolve').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          const fp = btn.dataset.fp;
+          if (!fp || btn.disabled) return;
+          btn.disabled = true;
+          try {
+            await API.post(`/api/admin/errors/${encodeURIComponent(fp)}/resolve`, {});
+            btn.textContent = 'Resolved';
+          } catch {
+            btn.disabled = false;
+          }
+        });
+      });
+    } catch (err) {
+      container.innerHTML = '<p class="error-state">Failed to load system data.</p>';
+    }
+  },
+
+  _renderTrendBars(containerId, dataPoints) {
+    const el = document.getElementById(containerId);
+    if (!el || !dataPoints.length) return;
+    const max = Math.max(...dataPoints.map(d => d.count), 1);
+    el.innerHTML = dataPoints.map(d => {
+      const pct = Math.max(2, (d.count / max) * 100);
+      const label = d.date.slice(5);
+      return `<div class="trend-bar-wrapper" title="${d.date}: ${d.count}">
+        <div class="trend-bar" style="height:${pct}%"></div>
+        <span class="trend-bar-label">${label}</span>
+      </div>`;
+    }).join('');
+  },
+
+  _metricCard(label, value, sub) {
+    return `<div class="admin-metric-card"><div class="admin-metric-label">${escapeHtml(String(label))}</div><div class="admin-metric-value">${escapeHtml(String(value))}</div>${sub ? `<div class="admin-metric-sub">${escapeHtml(String(sub))}</div>` : ''}</div>`;
   },
 
   _setupFilterOverlay() {
@@ -729,15 +1205,35 @@ window.App = {
 
     const liveUrl = project.demoUrl || project.url;
     const isValidUrl = /^https?:\/\//i.test(liveUrl || '');
-    iframe.src = isValidUrl ? liveUrl : '';
+
+    iframe.src = '';
     iframe.style.display = '';
     fallback.style.display = 'none';
 
-    iframe.onerror = () => {
+    const showFallback = () => {
       iframe.style.display = 'none';
       fallback.style.display = '';
-      document.getElementById('fallback-visit').href = liveUrl;
+      const fallbackLink = document.getElementById('fallback-visit');
+      if (fallbackLink && isValidUrl) fallbackLink.href = liveUrl;
     };
+
+    if (!isValidUrl) {
+      showFallback();
+    } else {
+      clearTimeout(this._iframeLoadTimer);
+      this._iframeLoadTimer = setTimeout(showFallback, 8000);
+
+      iframe.onload = () => {
+        clearTimeout(this._iframeLoadTimer);
+      };
+
+      iframe.onerror = () => {
+        clearTimeout(this._iframeLoadTimer);
+        showFallback();
+      };
+
+      iframe.src = liveUrl;
+    }
 
     API.trackEvent({ event: 'project_view', projectId: project.id, sessionId: this._sessionId });
 
@@ -778,7 +1274,9 @@ window.App = {
       </div>
     `;
 
-    meta.querySelector('.overlay-visit-btn').addEventListener('click', () => window.open(liveUrl, '_blank'));
+    meta.querySelector('.overlay-visit-btn').addEventListener('click', () => {
+      if (isValidUrl) window.open(liveUrl, '_blank', 'noopener,noreferrer');
+    });
     meta.querySelector('.overlay-feedback-btn').addEventListener('click', () => Feedback.showSubmitForm(project.id, project.title || ''));
     meta.querySelector('.overlay-share-btn').addEventListener('click', () => {
       navigator.clipboard.writeText(location.origin + '/u/' + (project.ownerUsername || ''));
@@ -820,6 +1318,7 @@ window.App = {
   _setupOverlay() {
     const overlay = document.getElementById('project-overlay');
     const close = () => {
+      clearTimeout(App._iframeLoadTimer);
       overlay.style.display = 'none';
       document.body.style.overflow = '';
       document.getElementById('overlay-iframe').src = '';
@@ -875,8 +1374,12 @@ window.App = {
   _setupMobile() {
     const indexBtn = document.getElementById('mobile-index-btn');
     const feedbackBtn = document.getElementById('mobile-feedback-btn');
+    const projectsBtn = document.getElementById('mobile-projects-btn');
     const refreshBtn = document.getElementById('mobile-nav-refresh');
     const loginBtn = document.getElementById('mobile-login-btn');
+    const loginPill = document.getElementById('mobile-login-pill');
+    const profileBtn = document.getElementById('mobile-nav-profile');
+    const adminBtn = document.getElementById('mobile-nav-admin');
 
     if (indexBtn) {
       indexBtn.addEventListener('click', () => {
@@ -889,6 +1392,13 @@ window.App = {
       feedbackBtn.addEventListener('click', () => {
         Router.navigate('/feedback');
         this._updateMobilePill('feedback');
+      });
+    }
+
+    if (projectsBtn) {
+      projectsBtn.addEventListener('click', () => {
+        Router.navigate('/dashboard');
+        this._updateMobilePill('projects');
       });
     }
 
@@ -908,6 +1418,28 @@ window.App = {
       });
     }
 
+    if (loginPill) {
+      loginPill.addEventListener('click', () => {
+        window.location.href = '/api/login?returnTo=/';
+      });
+    }
+
+    if (profileBtn) {
+      profileBtn.addEventListener('click', () => {
+        if (Auth.user && Auth.user.username) {
+          Router.navigate('/u/' + Auth.user.username);
+        } else {
+          Router.navigate('/dashboard');
+        }
+      });
+    }
+
+    if (adminBtn) {
+      adminBtn.addEventListener('click', () => {
+        Router.navigate('/admin');
+      });
+    }
+
     document.querySelectorAll('.mobile-top-pill-btn').forEach((btn) => {
       btn.addEventListener('click', () => {
         document.querySelectorAll('.mobile-top-pill-btn').forEach((b) => b.classList.remove('active'));
@@ -924,6 +1456,7 @@ window.App = {
       index: document.getElementById('mobile-index-btn'),
       filter: document.getElementById('mobile-filter-btn'),
       feedback: document.getElementById('mobile-feedback-btn'),
+      projects: document.getElementById('mobile-projects-btn'),
     };
     Object.values(pills).forEach((p) => p && p.classList.remove('mobile-pill-active'));
     if (pills[active]) pills[active].classList.add('mobile-pill-active');

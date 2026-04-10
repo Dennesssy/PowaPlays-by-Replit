@@ -9,9 +9,21 @@ window.escapeHtml = function(str) {
 };
 
 window.API = {
+  async _parseError(res) {
+    try {
+      const data = await res.json();
+      return data.error || `HTTP ${res.status}`;
+    } catch {
+      return `HTTP ${res.status}`;
+    }
+  },
+
   async get(url) {
     const res = await fetch(url, { credentials: 'include' });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    if (!res.ok) {
+      const msg = await this._parseError(res);
+      throw new Error(msg);
+    }
     return res.json();
   },
 
@@ -22,7 +34,10 @@ window.API = {
       credentials: 'include',
       body: body ? JSON.stringify(body) : undefined,
     });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    if (!res.ok) {
+      const msg = await this._parseError(res);
+      throw new Error(msg);
+    }
     return res.json();
   },
 
@@ -33,13 +48,19 @@ window.API = {
       credentials: 'include',
       body: JSON.stringify(body),
     });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    if (!res.ok) {
+      const msg = await this._parseError(res);
+      throw new Error(msg);
+    }
     return res.json();
   },
 
   async del(url) {
     const res = await fetch(url, { method: 'DELETE', credentials: 'include' });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    if (!res.ok) {
+      const msg = await this._parseError(res);
+      throw new Error(msg);
+    }
     return res.json();
   },
 
@@ -53,15 +74,15 @@ window.API = {
   },
 
   getProject(id) {
-    return this.get('/api/projects/' + id);
+    return this.get('/api/projects/' + encodeURIComponent(id));
   },
 
   getUserProfile(username) {
-    return this.get('/api/users/' + username + '/profile');
+    return this.get('/api/users/' + encodeURIComponent(username) + '/profile');
   },
 
   getUserProjects(username) {
-    return this.get('/api/users/' + username + '/projects');
+    return this.get('/api/users/' + encodeURIComponent(username) + '/projects');
   },
 
   getMe() {
@@ -73,15 +94,15 @@ window.API = {
   },
 
   updateProject(id, data) {
-    return this.patch('/api/me/projects/' + id, data);
+    return this.patch('/api/me/projects/' + encodeURIComponent(id), data);
   },
 
   addFavorite(projectId) {
-    return this.post('/api/favorites/' + projectId);
+    return this.post('/api/favorites/' + encodeURIComponent(projectId));
   },
 
   removeFavorite(projectId) {
-    return this.del('/api/favorites/' + projectId);
+    return this.del('/api/favorites/' + encodeURIComponent(projectId));
   },
 
   getMyFavorites() {
@@ -98,15 +119,15 @@ window.API = {
   },
 
   getFeedback(id) {
-    return this.get('/api/feedback/' + id);
+    return this.get('/api/feedback/' + encodeURIComponent(id));
   },
 
   respondToFeedback(id, data) {
-    return this.post('/api/feedback/' + id + '/respond', data);
+    return this.post('/api/feedback/' + encodeURIComponent(id) + '/respond', data);
   },
 
   updateFeedbackStatus(id, data) {
-    return this.patch('/api/feedback/' + id + '/status', data);
+    return this.patch('/api/feedback/' + encodeURIComponent(id) + '/status', data);
   },
 
   trackEvent(data) {
@@ -118,7 +139,7 @@ window.API = {
   },
 
   getAnalyticsDashboard(period = '7d') {
-    return this.get('/api/admin/analytics?period=' + period);
+    return this.get('/api/admin/analytics?period=' + encodeURIComponent(period));
   },
 
   getNotifications() {
@@ -126,6 +147,39 @@ window.API = {
   },
 
   markNotificationRead(id) {
-    return this.post('/api/me/notifications/' + id + '/read');
+    return this.post('/api/me/notifications/' + encodeURIComponent(id) + '/read');
+  },
+
+  markAllNotificationsRead() {
+    return this.post('/api/me/notifications/read-all');
+  },
+
+  getMyRepls() {
+    return this.get('/api/me/repls');
+  },
+
+  importRepl(data) {
+    return this.post('/api/me/repls/import', data);
+  },
+
+  getMyProjectAnalytics() {
+    return this.get('/api/me/projects/analytics');
+  },
+
+  getUserAnalytics(userId) {
+    return this.get('/api/admin/users/' + encodeURIComponent(userId) + '/analytics');
+  },
+
+  getAdminUsers(params = {}) {
+    const qs = new URLSearchParams(params).toString();
+    return this.get('/api/admin/users' + (qs ? '?' + qs : ''));
+  },
+
+  updateUserRole(userId, role) {
+    return this.patch('/api/admin/users/' + encodeURIComponent(userId) + '/role', { role });
+  },
+
+  completeOnboarding() {
+    return this.post('/api/me/onboarding/complete');
   },
 };

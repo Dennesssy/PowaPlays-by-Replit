@@ -32,6 +32,10 @@ export const projectsTable = pgTable("projects", {
 }, (table) => [
   index("idx_projects_external_id").on(table.externalId),
   index("idx_projects_buildathon_id").on(table.buildathonId),
+  index("idx_projects_owner_id").on(table.ownerId),
+  index("idx_projects_public_hidden").on(table.isPublic, table.isHidden),
+  index("idx_projects_created_at").on(table.createdAt),
+  index("idx_projects_favorite_count").on(table.favoriteCount),
 ]);
 
 export type Project = typeof projectsTable.$inferSelect;

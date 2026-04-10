@@ -9,6 +9,8 @@ import analyticsRouter from "./analytics";
 import notificationsRouter from "./notifications";
 import syncRouter from "./sync";
 import adminRouter from "./admin";
+import replsRouter from "./repls";
+import projectAnalyticsRouter from "./projectAnalytics";
 
 const router: IRouter = Router();
 
@@ -22,5 +24,7 @@ router.use(analyticsRouter);
 router.use(notificationsRouter);
 router.use(syncRouter);
 router.use(adminRouter);
+router.use(replsRouter);
+router.use(projectAnalyticsRouter);
 
 export default router;

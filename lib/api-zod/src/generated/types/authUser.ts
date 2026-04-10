@@ -15,5 +15,8 @@ export interface AuthUser {
   /** @nullable */
   lastName: string | null;
   /** @nullable */
+  username: string | null;
+  /** @nullable */
   profileImageUrl: string | null;
+  onboardingCompleted?: boolean;
 }

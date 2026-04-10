@@ -1,6 +1,6 @@
 import { Router, type IRouter, type Request, type Response } from "express";
 import { db, favoritesTable, projectsTable, usersTable } from "@workspace/db";
-import { eq, and, sql } from "drizzle-orm";
+import { eq, and, sql, desc } from "drizzle-orm";
 
 const router: IRouter = Router();
 
@@ -11,14 +11,24 @@ router.post("/favorites/:projectId", async (req: Request, res: Response) => {
   }
 
   const projectId = parseInt(req.params.projectId as string);
-  if (isNaN(projectId)) {
+  if (isNaN(projectId) || projectId < 1) {
     res.status(400).json({ error: "Invalid project ID" });
     return;
   }
 
   try {
+    const [project] = await db
+      .select({ id: projectsTable.id })
+      .from(projectsTable)
+      .where(eq(projectsTable.id, projectId));
+
+    if (!project) {
+      res.status(404).json({ error: "Project not found" });
+      return;
+    }
+
     const [existing] = await db
-      .select()
+      .select({ id: favoritesTable.id })
       .from(favoritesTable)
       .where(
         and(
@@ -54,14 +64,14 @@ router.delete(
     }
 
     const projectId = parseInt(req.params.projectId as string);
-    if (isNaN(projectId)) {
+    if (isNaN(projectId) || projectId < 1) {
       res.status(400).json({ error: "Invalid project ID" });
       return;
     }
 
     try {
       const [existing] = await db
-        .select()
+        .select({ id: favoritesTable.id })
         .from(favoritesTable)
         .where(
           and(
@@ -101,30 +111,42 @@ router.get("/me/favorites", async (req: Request, res: Response) => {
     return;
   }
 
+  const page = Math.max(1, parseInt(req.query.page as string) || 1);
+  const limit = Math.min(100, Math.max(1, parseInt(req.query.limit as string) || 50));
+  const offset = (page - 1) * limit;
+
   try {
-    const projects = await db
-      .select({
-        id: projectsTable.id,
-        title: projectsTable.title,
-        slug: projectsTable.slug,
-        url: projectsTable.url,
-        description: projectsTable.description,
-        tags: projectsTable.tags,
-        style: projectsTable.style,
-        isPublic: projectsTable.isPublic,
-        isHidden: projectsTable.isHidden,
-        thumbnailUrl: projectsTable.thumbnailUrl,
-        previewVideoUrl: projectsTable.previewVideoUrl,
-        favoriteCount: projectsTable.favoriteCount,
-        ownerUsername: usersTable.username,
-        ownerAvatarUrl: usersTable.profileImageUrl,
-        createdAt: projectsTable.createdAt,
-      })
-      .from(favoritesTable)
-      .innerJoin(projectsTable, eq(favoritesTable.projectId, projectsTable.id))
-      .leftJoin(usersTable, eq(projectsTable.ownerId, usersTable.id))
-      .where(eq(favoritesTable.userId, req.user.id))
-      .orderBy(sql`${favoritesTable.createdAt} DESC`);
+    const [projects, countResult] = await Promise.all([
+      db
+        .select({
+          id: projectsTable.id,
+          title: projectsTable.title,
+          slug: projectsTable.slug,
+          url: projectsTable.url,
+          description: projectsTable.description,
+          tags: projectsTable.tags,
+          style: projectsTable.style,
+          isPublic: projectsTable.isPublic,
+          isHidden: projectsTable.isHidden,
+          thumbnailUrl: projectsTable.thumbnailUrl,
+          previewVideoUrl: projectsTable.previewVideoUrl,
+          favoriteCount: projectsTable.favoriteCount,
+          ownerUsername: usersTable.username,
+          ownerAvatarUrl: usersTable.profileImageUrl,
+          createdAt: projectsTable.createdAt,
+        })
+        .from(favoritesTable)
+        .innerJoin(projectsTable, eq(favoritesTable.projectId, projectsTable.id))
+        .leftJoin(usersTable, eq(projectsTable.ownerId, usersTable.id))
+        .where(eq(favoritesTable.userId, req.user.id))
+        .orderBy(desc(favoritesTable.createdAt))
+        .limit(limit)
+        .offset(offset),
+      db
+        .select({ count: sql<number>`count(*)::int` })
+        .from(favoritesTable)
+        .where(eq(favoritesTable.userId, req.user.id)),
+    ]);
 
     res.json({
       projects: projects.map((p) => ({
@@ -134,7 +156,7 @@ router.get("/me/favorites", async (req: Request, res: Response) => {
         ownerAvatarUrl: p.ownerAvatarUrl || null,
         createdAt: p.createdAt.toISOString(),
       })),
-      total: projects.length,
+      total: countResult[0]?.count || 0,
     });
   } catch (err) {
     req.log.error({ err }, "Error listing favorites");

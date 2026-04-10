@@ -14,6 +14,7 @@ declare global {
   namespace Express {
     interface User extends AuthUser {
       role?: string;
+      onboardingCompleted?: boolean;
     }
 
     interface Request {

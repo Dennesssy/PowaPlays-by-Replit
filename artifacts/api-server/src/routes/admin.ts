@@ -309,4 +309,76 @@ router.get("/admin/projects/timeline", async (req: Request, res: Response) => {
   }
 });
 
+router.get("/admin/errors/fingerprints", async (req: Request, res: Response) => {
+  if (!requireAdmin(req, res)) return;
+
+  const limit = Math.min(50, parseInt(req.query.limit as string) || 20);
+  const showResolved = req.query.resolved === "true";
+
+  try {
+    const errors = await db
+      .select({
+        fingerprint: errorEventsTable.fingerprint,
+        message: errorEventsTable.message,
+        level: errorEventsTable.level,
+        occurrences: errorEventsTable.occurrences,
+        lastSeenAt: errorEventsTable.lastSeenAt,
+        createdAt: errorEventsTable.createdAt,
+        resolvedAt: errorEventsTable.resolvedAt,
+      })
+      .from(errorEventsTable)
+      .where(showResolved ? undefined : sql`${errorEventsTable.resolvedAt} is null`)
+      .orderBy(desc(errorEventsTable.occurrences))
+      .limit(limit);
+
+    res.json({ errors });
+  } catch (err) {
+    req.log.error({ err }, "Error fetching error fingerprints");
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+router.post("/admin/errors/:fingerprint/resolve", async (req: Request, res: Response) => {
+  if (!requireAdmin(req, res)) return;
+
+  const { fingerprint } = req.params;
+  if (!fingerprint || fingerprint.length > 64) {
+    res.status(400).json({ error: "Invalid fingerprint" });
+    return;
+  }
+
+  try {
+    await db
+      .update(errorEventsTable)
+      .set({ resolvedAt: new Date() })
+      .where(eq(errorEventsTable.fingerprint, fingerprint));
+
+    await audit(req, "resolve_error", "error", fingerprint);
+    res.json({ success: true });
+  } catch (err) {
+    req.log.error({ err }, "Error resolving error fingerprint");
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+router.get("/admin/users/growth", async (req: Request, res: Response) => {
+  if (!requireAdmin(req, res)) return;
+
+  const days = Math.min(90, parseInt(req.query.days as string) || 30);
+
+  try {
+    const growth = await db.execute(sql`
+      SELECT date_trunc('day', created_at AT TIME ZONE 'UTC')::date as day, count(*)::int as count
+      FROM users
+      WHERE created_at >= now() - interval '1 day' * ${days}
+      GROUP BY day
+      ORDER BY day
+    `);
+    res.json({ days, growth: growth.rows });
+  } catch (err) {
+    req.log.error({ err }, "Error fetching user growth");
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
 export default router;
