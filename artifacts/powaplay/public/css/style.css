@@ -1358,8 +1358,8 @@ img { display: block; max-width: 100%; }
 }
 
 .mobile-corner-btn {
-  width: 40px;
-  height: 40px;
+  width: 44px;
+  height: 44px;
   border-radius: 50%;
   background: var(--glass-bg);
   backdrop-filter: blur(16px);
@@ -1391,17 +1391,18 @@ img { display: block; max-width: 100%; }
 }
 
 .mobile-pill-icon {
-  width: 36px;
-  height: 36px;
+  width: 40px;
+  height: 40px;
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
   color: #ffffff;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 700;
   transition: all 0.2s;
   background: transparent;
+  position: relative;
 }
 
 .mobile-pill-icon:active {
@@ -1412,12 +1413,31 @@ img { display: block; max-width: 100%; }
   background: rgba(255, 255, 255, 0.25);
   border-radius: 10px;
   padding: 0 4px;
-  min-width: 36px;
+  min-width: 40px;
 }
 
 .mobile-pill-label {
-  font-size: 14px;
+  font-size: 15px;
   font-weight: 700;
+}
+
+.mobile-filter-badge {
+  position: absolute;
+  top: 2px;
+  right: 0px;
+  min-width: 18px;
+  height: 18px;
+  border-radius: 9px;
+  background: #ffffff;
+  color: #0f0f0f;
+  font-size: 11px;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 4px;
+  line-height: 1;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.2);
 }
 
 .filter-overlay {

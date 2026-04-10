@@ -622,6 +622,17 @@ window.App = {
       btn.classList.toggle('active', btn.dataset.sort === this.currentSort);
     });
 
+    const filterCount = (this.currentTag ? 1 : 0) + (this.currentStyle ? 1 : 0) + (this.currentSearch ? 1 : 0);
+    const badge = document.getElementById('mobile-filter-badge');
+    if (badge) {
+      if (filterCount > 0) {
+        badge.textContent = filterCount;
+        badge.style.display = '';
+      } else {
+        badge.style.display = 'none';
+      }
+    }
+
     document.querySelectorAll('.fp-chip').forEach((c) => {
       c.classList.toggle('active', c.dataset.tag === this.currentTag);
     });

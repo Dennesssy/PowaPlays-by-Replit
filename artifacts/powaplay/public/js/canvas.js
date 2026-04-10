@@ -441,9 +441,10 @@ window.Canvas = {
     }, { passive: true });
     this.el.addEventListener('touchmove', (e) => {
       if (e.touches.length === 1 && e.touches[0].identifier === touchId) {
+        e.preventDefault();
         pointerMove(e.touches[0].clientX, e.touches[0].clientY);
       }
-    }, { passive: true });
+    }, { passive: false });
     this.el.addEventListener('touchend', () => pointerUp());
 
     this.el.addEventListener('wheel', (e) => {
