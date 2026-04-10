@@ -1825,24 +1825,36 @@ img { display: block; max-width: 100%; }
   }
 
   .tile-media {
-    height: 72%;
+    height: 65%;
   }
 
   .tile-info {
-    padding: 6px 8px;
+    padding: 4px 6px;
   }
 
   .tile-title {
-    font-size: 12px;
+    font-size: 10px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
   .tile-owner {
-    font-size: 10px;
+    font-size: 9px;
   }
 
   .tile-fav-btn {
-    font-size: 10px;
-    padding: 1px 4px;
+    font-size: 9px;
+    padding: 1px 3px;
+  }
+
+  .tile-fav-btn svg {
+    width: 10px;
+    height: 10px;
+  }
+
+  .tile-placeholder span {
+    font-size: 20px;
   }
 
   .tile-tags {

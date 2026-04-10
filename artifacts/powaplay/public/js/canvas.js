@@ -31,9 +31,9 @@ window.Canvas = {
     if (this._isMobile()) {
       const vw = window.innerWidth;
       this.GAP = 6;
-      this.COLS = 2;
-      this.TILE_W = Math.floor((vw - this.GAP * 3) / 2);
-      this.TILE_H = Math.round(this.TILE_W * 0.85);
+      this.COLS = vw >= 480 ? 4 : 3;
+      this.TILE_W = Math.floor((vw - this.GAP * (this.COLS + 1)) / this.COLS);
+      this.TILE_H = Math.round(this.TILE_W * 1.1);
     } else {
       this.GAP = 8;
       this._updateCols();
@@ -311,11 +311,12 @@ window.Canvas = {
     const initials = (project.title || 'P').slice(0, 2).toUpperCase();
     const hue = (project.id * 47) % 360;
 
+    const placeholderHtml = `<div class="tile-placeholder" style="background: linear-gradient(135deg, hsl(${hue}, 40%, 92%), hsl(${hue + 40}, 50%, 85%))"><span>${initials}</span></div>`;
     let thumbHtml;
     if (project.thumbnailUrl) {
-      thumbHtml = `<img src="${escapeHtml(project.thumbnailUrl)}" alt="" class="tile-thumb" loading="lazy">`;
+      thumbHtml = `<img src="${escapeHtml(project.thumbnailUrl)}" alt="" class="tile-thumb" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';">${placeholderHtml.replace('style="', 'style="display:none;')}`;
     } else {
-      thumbHtml = `<div class="tile-placeholder" style="background: linear-gradient(135deg, hsl(${hue}, 40%, 92%), hsl(${hue + 40}, 50%, 85%))"><span>${initials}</span></div>`;
+      thumbHtml = placeholderHtml;
     }
 
     let videoHtml = '';
