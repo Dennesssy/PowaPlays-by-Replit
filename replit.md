@@ -351,29 +351,19 @@ The main SPA controller. Handles routing, auth state, page rendering, and the pr
 
 ---
 
-### `artifacts/powaplay/public/js/canvas.js` (550 lines)
+### `artifacts/powaplay/public/js/canvas.js`
 
-The 2D draggable grid. Completely independent from app.js — communicates only via the `Canvas` global object.
+True omnidirectional 2D draggable canvas with radial tile layout. Completely independent from app.js — communicates only via the `Canvas` global object.
 
-**Sections by line range:**
+**Architecture:**
 
-- **Lines 1–60 — State:** `_offsetX/Y` (pan position), `_discoverPage` (current south page), `_discoverNorthPage` (current north page), `_cols` (grid columns), `_tileW/H` (tile dimensions).
-
-- **Lines 60–150 — Pointer/Touch events:** Mouse drag and touch pan handlers. `touch-action: none` in CSS and `preventDefault()` on touchstart/touchmove prevents iOS scroll hijack.
-
-- **Lines 150–250 — `_render()`:** Positions all tiles based on `_offsetX/Y`. Triggers edge detection.
-
-- **`_applyTransform()` — Omnidirectional pan:** X and Y are both softly clamped with `pad = max(vw*0.3, 120)` so the grid can be dragged left/right/diagonally, but can't go fully off-screen. Inertia applies the same transform on each frame.
-
-- **Lines 250–350 — Edge detection:** South edge (`scrolledY > maxY - 600`) triggers `_loadMoreProjects()`. North edge (`scrolledY < 600`) triggers `_loadMoreProjectsNorth()`.
-  - **Critical:** `_discoverNorthAllLoaded` prevents duplicate north loads. `_discoverSouthAllLoaded` stops south loading when last page reached.
-  - **Fast initial load:** `_showDiscover()` and `_applyFilters()` load page 1 directly (no probe request) with `limit=500`. North loading is disabled on initial load. South edge detection loads subsequent pages. Server-side 60s in-memory cache on `/api/projects` for repeat visitors.
-
-- **Lines 350–450 — `_loadMoreProjects()` / `_loadMoreProjectsNorth()`:** Fetch the next/previous page. Append tiles to the south, prepend to the north. North prepend shifts all existing grid indices by `newProjects.length` to stay aligned.
-
-- **Lines 450–550 — `_createTile(project, index)`:** Renders a single project card. Thumbnail, title, owner, tags, favorites count. Click → `App.openProject(project)`.
-
-**Pagination contract:** Always uses `limit=500`. The `_discoverAllLoaded` flag fires when fewer than 500 results return. Do not change the limit without also updating `MAX_LIMIT` in `projects.ts`.
+- **Device detection module:** Detects touch support, DPR, pointer type, WebGPU availability. Tunes friction (0.95 touch vs 0.92 mouse) and tile sizes.
+- **Tile sizes:** Desktop: 220×187px. Mobile: 110×127px. Hero spans 2 columns.
+- **Radial layout:** Tiles sorted by distance from hero center (`Math.hypot(col-hcx, (row-hcy)*aspect)`). Hero placed at `floor((cols-2)/2), floor(rows/2)`. Grid extends beyond viewport in all directions.
+- **GPU hints:** `will-change: transform`, `contain: layout style paint`, `content-visibility: auto` on tiles.
+- **Centering:** `_centerOnHero()` is the canonical method — computes hero position and sets offsets to center it in the viewport.
+- **Soft clamping:** X and Y panning clamped with `pad = max(vw*0.3, 120)` so grid can be dragged omnidirectionally but can't go fully off-screen.
+- **All-at-once loading:** `limit=2000` fetches all projects in a single request. No pagination/infinite scroll. `MAX_LIMIT` in `projects.ts` = 2000.
 
 ---
 

@@ -13,36 +13,62 @@ window.Canvas = {
   filtered: [],
   tiles: [],
   _mountedTiles: new Map(),
-  TILE_W: 280,
-  TILE_H: 220,
+  TILE_W: 220,
+  TILE_H: 187,
   GAP: 8,
-  COLS: 6,
+  COLS: 8,
   _virtualRafId: null,
   _lastVirtualCheck: 0,
   _heroEl: null,
-  _heroGridIndex: -1,
-  _heroGridIndex2: -1,
+  _heroCenterPx: { x: 0, y: 0 },
 
-  _isMobile() {
-    return window.innerWidth <= 768;
+  device: {
+    isMobile: false,
+    isTouch: false,
+    dpr: 1,
+    hasWebGPU: false,
+    pointerType: 'mouse',
+  },
+
+  _detectDevice() {
+    const vw = window.innerWidth;
+    this.device.isMobile = vw <= 768;
+    this.device.isTouch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+    this.device.dpr = window.devicePixelRatio || 1;
+    this.device.hasWebGPU = !!navigator.gpu;
+    this.device.pointerType = this.device.isTouch ? 'touch' : 'mouse';
+
+    if (window.PointerEvent) {
+      window.addEventListener('pointerdown', (e) => {
+        this.device.pointerType = e.pointerType;
+      }, { once: true, passive: true });
+    }
   },
 
   _updateTileSize() {
-    if (this._isMobile()) {
-      const vw = window.innerWidth;
+    this._detectDevice();
+    const vw = this.el ? this.el.clientWidth : window.innerWidth;
+
+    if (this.device.isMobile) {
       this.GAP = 6;
-      this.COLS = vw >= 480 ? 4 : 3;
-      this.TILE_W = Math.floor((vw - this.GAP * (this.COLS + 1)) / this.COLS);
-      this.TILE_H = Math.round(this.TILE_W * 1.1);
+      this.TILE_W = 110;
+      this.TILE_H = Math.round(this.TILE_W * 1.15);
+      const visibleCols = Math.floor(vw / (this.TILE_W + this.GAP));
+      this.COLS = visibleCols + 2;
     } else {
       this.GAP = 8;
-      this._updateCols();
+      this.TILE_W = 220;
+      this.TILE_H = Math.round(this.TILE_W * 0.85);
+      const visibleCols = Math.floor(vw / (this.TILE_W + this.GAP));
+      this.COLS = visibleCols + 3;
     }
   },
 
   init(viewportEl, containerEl) {
     this.el = viewportEl;
     this.container = containerEl;
+    this._detectDevice();
+    this._applyGPUHints();
     this._bindEvents();
     this._updateTileSize();
     let resizeTimer;
@@ -61,16 +87,11 @@ window.Canvas = {
     });
   },
 
-  _updateCols() {
-    if (!this.el) return;
-    const w = this.el.clientWidth;
-    this.TILE_W = 280;
-    this.TILE_H = 220;
-    this.COLS = Math.max(2, Math.floor(w / (this.TILE_W + this.GAP)));
-    const totalGridW = this.COLS * this.TILE_W + (this.COLS - 1) * this.GAP;
-    if (totalGridW < w - 32) {
-      this.TILE_W = Math.floor((w - 32 - (this.COLS - 1) * this.GAP) / this.COLS);
-      this.TILE_H = Math.round(this.TILE_W * 0.78);
+  _applyGPUHints() {
+    if (this.container) {
+      this.container.style.willChange = 'transform';
+      this.container.style.contain = 'layout style';
+      this.container.style.backfaceVisibility = 'hidden';
     }
   },
 
@@ -78,69 +99,6 @@ window.Canvas = {
     this.projects = projects;
     this.filtered = projects;
     this.render();
-  },
-
-  appendProjects(newProjects) {
-    this.projects = this.projects.concat(newProjects);
-    this.filtered = this.filtered.concat(newProjects);
-    const cols = this.COLS;
-    const startIndex = this.tiles.length;
-    newProjects.forEach((project, i) => {
-      const idx = startIndex + i;
-      const col = idx % cols;
-      const row = Math.floor(idx / cols);
-      const x = col * (this.TILE_W + this.GAP);
-      const y = row * (this.TILE_H + this.GAP);
-      this.tiles.push({ x, y, project, index: idx, el: null });
-    });
-    const rows = Math.ceil(this.filtered.length / cols);
-    this.container.style.height = (rows * (this.TILE_H + this.GAP) - this.GAP) + 'px';
-    this._updateVirtualTiles();
-  },
-
-  prependProjects(newProjects) {
-    if (!newProjects || newProjects.length === 0) return;
-    const cols = this.COLS;
-    const newRows = Math.ceil(newProjects.length / cols);
-    const shiftY = newRows * (this.TILE_H + this.GAP);
-
-    this._mountedTiles.forEach((el) => el.remove());
-    this._mountedTiles.clear();
-
-    for (const t of this.tiles) {
-      t.y += shiftY;
-      t.index += newProjects.length;
-      t.el = null;
-    }
-
-    const newTiles = newProjects.map((project, i) => ({
-      x: (i % cols) * (this.TILE_W + this.GAP),
-      y: Math.floor(i / cols) * (this.TILE_H + this.GAP),
-      project,
-      index: i,
-      el: null,
-    }));
-
-    this.tiles = newTiles.concat(this.tiles);
-    this.projects = newProjects.concat(this.projects);
-    this.filtered = newProjects.concat(this.filtered);
-
-    const totalRows = Math.ceil(this.filtered.length / cols);
-    this.container.style.height = (totalRows * (this.TILE_H + this.GAP) - this.GAP) + 'px';
-
-    if (this._heroEl) {
-      const currentTop = parseInt(this._heroEl.style.top) || 0;
-      this._heroEl.style.top = (currentTop + shiftY) + 'px';
-    }
-
-    if (this._heroGridIndex >= 0) {
-      this._heroGridIndex += newProjects.length;
-      this._heroGridIndex2 += newProjects.length;
-    }
-
-    this.y -= shiftY;
-    this._applyTransform();
-    this._updateVirtualTiles();
   },
 
   filter(tag, style, search) {
@@ -170,44 +128,94 @@ window.Canvas = {
     this._heroEl = null;
     this.tiles = [];
     this._updateTileSize();
-    const cols = this.COLS;
-    const isMobile = this._isMobile();
 
-    this.container.style.left = isMobile ? (this.GAP + 'px') : '16px';
-    this.container.style.top = isMobile ? (this.GAP + 'px') : '16px';
+    const cols = this.COLS;
+    const totalSlots = this.filtered.length + 2;
+    const rows = Math.max(cols, Math.ceil(totalSlots / cols));
 
     const heroCol = Math.max(0, Math.floor((cols - 2) / 2));
-    this._heroGridIndex = cols + heroCol;
-    this._heroGridIndex2 = this._heroGridIndex + 1;
+    const heroRow = Math.floor(rows / 2);
 
+    const positions = [];
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < cols; c++) {
+        if (r === heroRow && (c === heroCol || c === heroCol + 1)) continue;
+        positions.push({ col: c, row: r });
+      }
+    }
+
+    const hcx = heroCol + 0.5;
+    const hcy = heroRow;
+    const aspect = (this.TILE_H + this.GAP) / (this.TILE_W + this.GAP);
+    positions.sort((a, b) => {
+      const da = Math.hypot(a.col - hcx, (a.row - hcy) * aspect);
+      const db = Math.hypot(b.col - hcx, (b.row - hcy) * aspect);
+      if (Math.abs(da - db) < 0.01) return a.row - b.row || a.col - b.col;
+      return da - db;
+    });
+
+    const used = positions.slice(0, this.filtered.length);
     this.filtered.forEach((project, i) => {
-      const col = i % cols;
-      const row = Math.floor(i / cols);
-      const x = col * (this.TILE_W + this.GAP);
-      const y = row * (this.TILE_H + this.GAP);
+      if (i >= used.length) return;
+      const pos = used[i];
+      const x = pos.col * (this.TILE_W + this.GAP);
+      const y = pos.row * (this.TILE_H + this.GAP);
       this.tiles.push({ x, y, project, index: i, el: null });
     });
 
-    const rows = Math.ceil(this.filtered.length / cols);
-    this.container.style.width = (cols * (this.TILE_W + this.GAP) - this.GAP) + 'px';
-    this.container.style.height = (rows * (this.TILE_H + this.GAP) - this.GAP) + 'px';
+    const gridW = cols * (this.TILE_W + this.GAP) - this.GAP;
+    const gridH = rows * (this.TILE_H + this.GAP) - this.GAP;
+    this.container.style.width = gridW + 'px';
+    this.container.style.height = gridH + 'px';
+    this.container.style.left = '0px';
+    this.container.style.top = '0px';
 
-    if (this.filtered.length > this._heroGridIndex2) {
-      const hx = heroCol * (this.TILE_W + this.GAP);
-      const hy = 1 * (this.TILE_H + this.GAP);
-      const heroW = 2 * this.TILE_W + this.GAP;
-      this._heroEl = this._createHeroTile(hx, hy, heroW);
-      this.container.appendChild(this._heroEl);
-    }
+    const heroX = heroCol * (this.TILE_W + this.GAP);
+    const heroY = heroRow * (this.TILE_H + this.GAP);
+    const heroW = 2 * this.TILE_W + this.GAP;
+    this._heroEl = this._createHeroTile(heroX, heroY, heroW);
+    this.container.appendChild(this._heroEl);
 
+    this._heroCenterPx = {
+      x: heroX + heroW / 2,
+      y: heroY + this.TILE_H / 2,
+    };
+
+    this._centerOnHero(false);
     this._updateVirtualTiles();
+  },
+
+  _centerOnHero(animate) {
+    if (!this.el) return;
+    const vw = this.el.clientWidth;
+    const vh = this.el.clientHeight;
+    const targetX = vw / 2 - this._heroCenterPx.x;
+    const targetY = vh / 2 - this._heroCenterPx.y;
+
+    if (animate) {
+      this.container.style.transition = 'transform 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94)';
+      this.x = targetX;
+      this.y = targetY;
+      this._applyTransform();
+      setTimeout(() => { this.container.style.transition = ''; }, 420);
+    } else {
+      this.x = targetX;
+      this.y = targetY;
+      this._applyTransform();
+    }
+  },
+
+  centerOnGrid(animate) {
+    this._centerOnHero(animate);
   },
 
   _getVisibleBounds() {
     if (!this.el) return { left: 0, top: 0, right: 1280, bottom: 720 };
     const vw = this.el.clientWidth;
     const vh = this.el.clientHeight;
-    const buffer = Math.max(vw, vh);
+    const buffer = this.device.isMobile
+      ? Math.max(vw, vh) * 1.5
+      : Math.max(vw, vh);
 
     return {
       left: -this.x - buffer,
@@ -225,8 +233,6 @@ window.Canvas = {
     const bounds = this._getVisibleBounds();
     const tileW = this.TILE_W;
     const tileH = this.TILE_H;
-    const offsetLeft = parseInt(this.container.style.left) || 0;
-    const offsetTop = parseInt(this.container.style.top) || 0;
 
     const toMount = [];
     const toUnmount = [];
@@ -234,10 +240,8 @@ window.Canvas = {
 
     for (let i = 0; i < this.tiles.length; i++) {
       const t = this.tiles[i];
-      const tx = t.x + offsetLeft;
-      const ty = t.y + offsetTop;
-      const inView = tx + tileW > bounds.left && tx < bounds.right &&
-                     ty + tileH > bounds.top && ty < bounds.bottom;
+      const inView = t.x + tileW > bounds.left && t.x < bounds.right &&
+                     t.y + tileH > bounds.top && t.y < bounds.bottom;
 
       if (inView) {
         visibleSet.add(i);
@@ -264,7 +268,6 @@ window.Canvas = {
 
     for (const idx of toMount) {
       const t = this.tiles[idx];
-      if (idx === this._heroGridIndex || idx === this._heroGridIndex2) continue;
       const tile = this._createTile(t.project, t.x, t.y, t.index);
       this.container.appendChild(tile);
       t.el = tile;
@@ -275,11 +278,7 @@ window.Canvas = {
   _createHeroTile(x, y, heroW) {
     const tile = document.createElement('div');
     tile.className = 'tile tile-hero';
-    tile.style.left = x + 'px';
-    tile.style.top = y + 'px';
-    tile.style.width = (heroW || this.TILE_W) + 'px';
-    tile.style.height = this.TILE_H + 'px';
-    tile.style.zIndex = '10';
+    tile.style.cssText = `left:${x}px;top:${y}px;width:${heroW}px;height:${this.TILE_H}px;z-index:10;contain:layout style paint;`;
     tile.innerHTML = `
       <div class="hero-icon">
         <span>P</span>
@@ -302,11 +301,8 @@ window.Canvas = {
   _createTile(project, x, y, index) {
     const tile = document.createElement('div');
     tile.className = 'tile';
-    tile.style.left = x + 'px';
-    tile.style.top = y + 'px';
-    tile.style.width = this.TILE_W + 'px';
-    tile.style.height = this.TILE_H + 'px';
-    tile.style.animationDelay = Math.min(index * 30, 500) + 'ms';
+    tile.style.cssText = `left:${x}px;top:${y}px;width:${this.TILE_W}px;height:${this.TILE_H}px;contain:layout style paint;content-visibility:auto;`;
+    tile.style.animationDelay = Math.min(index * 20, 400) + 'ms';
 
     const initials = (project.title || 'P').slice(0, 2).toUpperCase();
     const hue = (project.id * 47) % 360;
@@ -465,15 +461,14 @@ window.Canvas = {
 
   _applyTransform() {
     const containerW = parseInt(this.container.style.width) || 0;
-    const containerLeft = parseInt(this.container.style.left) || 0;
     const vw = this.el ? this.el.clientWidth : 0;
     const vh = this.el ? this.el.clientHeight : 0;
     const containerH = parseInt(this.container.style.height) || 0;
     const pad = Math.max(vw * 0.3, 120);
 
     if (containerW > 0 && vw > 0) {
-      const minX = vw - containerLeft - containerW - pad;
-      const maxX = -containerLeft + pad;
+      const minX = vw - containerW - pad;
+      const maxX = pad;
       this.x = Math.max(minX, Math.min(maxX, this.x));
     }
 
@@ -483,7 +478,6 @@ window.Canvas = {
 
     this.container.style.transform = `translate3d(${this.x}px, ${this.y}px, 0)`;
     this._scheduleVirtualUpdate();
-    this._checkEdge();
   },
 
   _scheduleVirtualUpdate() {
@@ -494,27 +488,9 @@ window.Canvas = {
     });
   },
 
-  _checkEdge() {
-    const containerH = parseInt(this.container.style.height) || 0;
-    const viewportH = this.el.clientHeight;
-    const scrolledY = Math.max(0, -this.y);
-
-    if (containerH > 0 && scrolledY + viewportH > containerH - 600) {
-      if (typeof App !== 'undefined' && App._loadMoreProjects) {
-        App._loadMoreProjects();
-      }
-    }
-
-    if (scrolledY < 600) {
-      if (typeof App !== 'undefined' && App._loadMoreProjectsNorth) {
-        App._loadMoreProjectsNorth();
-      }
-    }
-  },
-
   _startInertia() {
     if (this.rafId) cancelAnimationFrame(this.rafId);
-    const friction = 0.92;
+    const friction = this.device.isTouch ? 0.95 : 0.92;
     const step = () => {
       this.velX *= friction;
       this.velY *= friction;
@@ -525,28 +501,5 @@ window.Canvas = {
       this.rafId = requestAnimationFrame(step);
     };
     this.rafId = requestAnimationFrame(step);
-  },
-
-  centerOnGrid(animate) {
-    if (this.tiles.length === 0) return;
-    const containerW = parseInt(this.container.style.width) || 0;
-    const containerH = parseInt(this.container.style.height) || 0;
-    const vw = this.el.clientWidth;
-    const vh = this.el.clientHeight;
-
-    const targetX = (vw - containerW) / 2;
-    const targetY = Math.min(0, Math.max((vh - containerH) / 2, -16));
-
-    if (animate) {
-      this.container.style.transition = 'transform 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94)';
-      this.x = targetX;
-      this.y = targetY;
-      this._applyTransform();
-      setTimeout(() => { this.container.style.transition = ''; }, 420);
-    } else {
-      this.x = targetX;
-      this.y = targetY;
-      this._applyTransform();
-    }
   },
 };

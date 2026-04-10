@@ -274,18 +274,17 @@ window.App = {
 
       const explicitPage = parseInt(urlParams.get('page')) || 1;
 
-      const data = await API.getProjects({ ...baseParams, page: explicitPage, limit: 500 });
+      const data = await API.getProjects({ ...baseParams, page: 1, limit: 2000 });
       this._discoverTotal = data.total || 0;
       this._updateResultsCount(this._discoverTotal);
 
-      this._discoverPage = explicitPage;
-      this._discoverNorthPage = explicitPage - 1;
-      this._discoverNorthAllLoaded = explicitPage <= 1;
+      this._discoverPage = 1;
+      this._discoverNorthPage = 0;
+      this._discoverNorthAllLoaded = true;
 
       const projects = data.projects || [];
       Canvas.setProjects(projects);
-      this._discoverAllLoaded = (explicitPage * 500) >= this._discoverTotal;
-      this._setupInfiniteScroll();
+      this._discoverAllLoaded = true;
     } catch (err) {
       console.error('Failed to load projects:', err);
     }

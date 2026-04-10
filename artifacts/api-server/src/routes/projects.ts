@@ -19,7 +19,7 @@ function sanitizeSearch(input: string): string {
 }
 
 const VALID_SORT = new Set(["popular", "newest"]);
-const MAX_LIMIT = 500;
+const MAX_LIMIT = 2000;
 
 router.get("/projects", async (req: Request, res: Response) => {
   const tag = typeof req.query.tag === "string" ? req.query.tag.slice(0, 100) : undefined;
