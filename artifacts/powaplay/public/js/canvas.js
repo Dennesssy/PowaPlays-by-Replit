@@ -466,18 +466,19 @@ window.Canvas = {
     const containerW = parseInt(this.container.style.width) || 0;
     const containerLeft = parseInt(this.container.style.left) || 0;
     const vw = this.el ? this.el.clientWidth : 0;
+    const vh = this.el ? this.el.clientHeight : 0;
+    const containerH = parseInt(this.container.style.height) || 0;
+    const pad = Math.max(vw * 0.3, 120);
 
     if (containerW > 0 && vw > 0) {
-      const minX = vw - containerLeft - containerW;
-      const maxX = -containerLeft;
-      if (minX < maxX) {
-        this.x = Math.max(minX, Math.min(maxX, this.x));
-      } else {
-        this.x = 0;
-      }
+      const minX = vw - containerLeft - containerW - pad;
+      const maxX = -containerLeft + pad;
+      this.x = Math.max(minX, Math.min(maxX, this.x));
     }
 
-    this.y = Math.min(0, this.y);
+    const minY = vh - containerH - pad;
+    const maxY = pad;
+    this.y = Math.max(minY, Math.min(maxY, this.y));
 
     this.container.style.transform = `translate3d(${this.x}px, ${this.y}px, 0)`;
     this._scheduleVirtualUpdate();
@@ -495,7 +496,7 @@ window.Canvas = {
   _checkEdge() {
     const containerH = parseInt(this.container.style.height) || 0;
     const viewportH = this.el.clientHeight;
-    const scrolledY = -this.y;
+    const scrolledY = Math.max(0, -this.y);
 
     if (containerH > 0 && scrolledY + viewportH > containerH - 600) {
       if (typeof App !== 'undefined' && App._loadMoreProjects) {
@@ -533,7 +534,7 @@ window.Canvas = {
     const vh = this.el.clientHeight;
 
     const targetX = (vw - containerW) / 2;
-    const targetY = Math.min(0, (vh - containerH) / 2);
+    const targetY = Math.min(0, Math.max((vh - containerH) / 2, -16));
 
     if (animate) {
       this.container.style.transition = 'transform 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94)';

@@ -53,9 +53,13 @@ function getSafeReturnTo(value: unknown): string {
 }
 
 async function upsertUser(claims: Record<string, unknown>) {
+  console.log("[auth] OIDC claims keys:", Object.keys(claims));
+  console.log("[auth] OIDC claims.username:", claims.username, "preferred_username:", claims.preferred_username, "email:", claims.email);
   const email = (claims.email as string) || null;
   const firstName = (claims.first_name as string) || null;
-  const username = (claims.username as string) || (email ? email.split("@")[0] : (claims.sub as string));
+  const username = (claims.username as string)
+    || (claims.preferred_username as string)
+    || (email ? email.split("@")[0] : (claims.sub as string));
 
   const userData = {
     id: claims.sub as string,

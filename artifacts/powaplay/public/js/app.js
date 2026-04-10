@@ -272,32 +272,19 @@ window.App = {
       if (this.currentSearch) baseParams.search = this.currentSearch;
       if (this.currentSort && this.currentSort !== 'popular') baseParams.sort = this.currentSort;
 
-      const explicitPage = parseInt(urlParams.get('page')) || 0;
+      const explicitPage = parseInt(urlParams.get('page')) || 1;
 
-      let startPage;
-      if (explicitPage >= 1) {
-        startPage = explicitPage;
-      } else {
-        const probe = await API.getProjects({ ...baseParams, page: 1, limit: 1 });
-        const total = probe.total || 0;
-        const totalPages = Math.ceil(total / 500);
-        // Intentional design: start at page 2 when >1 page exists so that
-        // panning north immediately loads page 1 (bidirectional infinite scroll).
-        // When only 1 page exists, start at page 1 (north loading disabled).
-        startPage = totalPages > 1 ? 2 : 1;
-      }
-
-      const data = await API.getProjects({ ...baseParams, page: startPage, limit: 500 });
+      const data = await API.getProjects({ ...baseParams, page: explicitPage, limit: 500 });
       this._discoverTotal = data.total || 0;
       this._updateResultsCount(this._discoverTotal);
 
-      this._discoverPage = startPage;
-      this._discoverNorthPage = startPage - 1;
-      this._discoverNorthAllLoaded = startPage <= 1;
+      this._discoverPage = explicitPage;
+      this._discoverNorthPage = explicitPage - 1;
+      this._discoverNorthAllLoaded = explicitPage <= 1;
 
       const projects = data.projects || [];
       Canvas.setProjects(projects);
-      this._discoverAllLoaded = (startPage * 500) >= this._discoverTotal;
+      this._discoverAllLoaded = (explicitPage * 500) >= this._discoverTotal;
       this._setupInfiniteScroll();
     } catch (err) {
       console.error('Failed to load projects:', err);
@@ -1175,21 +1162,14 @@ window.App = {
     if (this.currentSort && this.currentSort !== 'popular') baseParams.sort = this.currentSort;
 
     try {
-      const probe = await API.getProjects({ ...baseParams, page: 1, limit: 1 });
-      const total = probe.total || 0;
-      const totalPages = Math.ceil(total / 500);
-      // Intentional design: start at page 2 when >1 page exists so that
-      // panning north immediately loads page 1 (bidirectional infinite scroll).
-      const startPage = totalPages > 1 ? 2 : 1;
-
-      const data = await API.getProjects({ ...baseParams, page: startPage, limit: 500 });
+      const data = await API.getProjects({ ...baseParams, page: 1, limit: 500 });
       Canvas.setProjects(data.projects || []);
       this._discoverTotal = data.total || 0;
-      this._discoverPage = startPage;
-      this._discoverNorthPage = startPage - 1;
-      this._discoverNorthAllLoaded = startPage <= 1;
+      this._discoverPage = 1;
+      this._discoverNorthPage = 0;
+      this._discoverNorthAllLoaded = true;
       this._updateResultsCount(this._discoverTotal);
-      this._discoverAllLoaded = (startPage * 500) >= this._discoverTotal;
+      this._discoverAllLoaded = 500 >= this._discoverTotal;
     } catch (err) {
       console.error('Failed to filter projects:', err);
     }

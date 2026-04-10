@@ -7,6 +7,9 @@ const router: IRouter = Router();
 const tagsCache: { data: unknown; expires: number } = { data: null, expires: 0 };
 const TAGS_CACHE_TTL = 5 * 60 * 1000;
 
+const projectsCache = new Map<string, { data: unknown; expires: number }>();
+const PROJECTS_CACHE_TTL = 60 * 1000;
+
 function isInternal(req: Request): boolean {
   return req.isAuthenticated() && (req.user.role === "internal" || req.user.role === "admin");
 }
@@ -26,6 +29,13 @@ router.get("/projects", async (req: Request, res: Response) => {
   const limit = Math.min(MAX_LIMIT, Math.max(1, parseInt(req.query.limit as string) || 50));
   const offset = (page - 1) * limit;
   const sort = VALID_SORT.has(req.query.sort as string) ? (req.query.sort as string) : "popular";
+
+  const cacheKey = `${page}:${limit}:${sort}:${tag || ""}:${style || ""}:${search || ""}`;
+  const cached = projectsCache.get(cacheKey);
+  if (cached && cached.expires > Date.now()) {
+    res.json(cached.data);
+    return;
+  }
 
   try {
     const conditions = [
@@ -91,7 +101,7 @@ router.get("/projects", async (req: Request, res: Response) => {
         .where(whereClause),
     ]);
 
-    res.json({
+    const response = {
       projects: projects.map((p) => ({
         ...p,
         tags: (p.tags as string[]) || [],
@@ -100,7 +110,15 @@ router.get("/projects", async (req: Request, res: Response) => {
         createdAt: p.createdAt.toISOString(),
       })),
       total: countResult[0]?.count || 0,
-    });
+    };
+
+    projectsCache.set(cacheKey, { data: response, expires: Date.now() + PROJECTS_CACHE_TTL });
+    if (projectsCache.size > 50) {
+      const first = projectsCache.keys().next().value;
+      if (first) projectsCache.delete(first);
+    }
+
+    res.json(response);
   } catch (err) {
     req.log.error({ err }, "Error listing projects");
     res.status(500).json({ error: "Internal server error" });
