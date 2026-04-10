@@ -2055,3 +2055,214 @@ img { display: block; max-width: 100%; }
   justify-content: center;
   width: 100%;
 }
+
+.tile-hero {
+  background: #0f0f0f;
+  border: none;
+  border-radius: var(--radius);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: space-between;
+  padding: 20px;
+  cursor: pointer;
+  overflow: hidden;
+  position: absolute;
+  box-shadow: 0 8px 40px rgba(0,0,0,0.32);
+  transition: transform 0.18s, box-shadow 0.18s;
+  gap: 10px;
+}
+
+.tile-hero::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse at 60% 0%, rgba(255,255,255,0.06) 0%, transparent 70%);
+  pointer-events: none;
+}
+
+.tile-hero:hover {
+  transform: scale(1.025);
+  box-shadow: 0 16px 56px rgba(0,0,0,0.45);
+}
+
+.hero-icon {
+  width: 36px;
+  height: 36px;
+  background: #ffffff;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 900;
+  font-size: 18px;
+  color: #0f0f0f;
+  flex-shrink: 0;
+}
+
+.hero-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.hero-title {
+  font-size: 20px;
+  font-weight: 800;
+  color: #ffffff;
+  line-height: 1.15;
+  letter-spacing: -0.5px;
+}
+
+@media (max-width: 768px) {
+  .hero-title { font-size: 16px; }
+}
+
+.hero-sub {
+  font-size: 12px;
+  color: rgba(255,255,255,0.45);
+  font-weight: 500;
+  letter-spacing: 0.2px;
+}
+
+.hero-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: #ffffff;
+  color: #0f0f0f;
+  border: none;
+  border-radius: var(--radius-pill);
+  padding: 7px 16px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: opacity 0.15s, transform 0.15s;
+  pointer-events: none;
+}
+
+.tile-hero:hover .hero-cta {
+  opacity: 0.9;
+}
+
+.hero-modal-backdrop {
+  backdrop-filter: blur(12px) saturate(120%);
+  -webkit-backdrop-filter: blur(12px) saturate(120%);
+  background: rgba(0,0,0,0.55);
+}
+
+.hero-modal-card {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: min(440px, 90vw);
+  background: #ffffff;
+  border-radius: 20px;
+  padding: 40px 36px 36px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 12px;
+  box-shadow: 0 24px 80px rgba(0,0,0,0.2);
+  animation: heroModalIn 0.22s cubic-bezier(0.34,1.56,0.64,1);
+}
+
+@keyframes heroModalIn {
+  from { opacity: 0; transform: translate(-50%,-50%) scale(0.92); }
+  to   { opacity: 1; transform: translate(-50%,-50%) scale(1); }
+}
+
+.hero-modal-logo {
+  width: 52px;
+  height: 52px;
+  background: #0f0f0f;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 900;
+  font-size: 24px;
+  color: #ffffff;
+  margin-bottom: 4px;
+}
+
+.hero-modal-title {
+  font-size: 22px;
+  font-weight: 800;
+  color: var(--text-primary);
+  letter-spacing: -0.5px;
+}
+
+.hero-modal-sub {
+  font-size: 13px;
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+.hero-modal-body {
+  font-size: 14px;
+  color: var(--text-secondary);
+  line-height: 1.6;
+  max-width: 320px;
+}
+
+.hero-modal-btn {
+  margin-top: 8px;
+  padding: 12px 28px;
+  font-size: 15px;
+  font-weight: 700;
+  border-radius: var(--radius-pill);
+  width: 100%;
+  justify-content: center;
+  text-decoration: none;
+  display: inline-flex;
+  background: #0f0f0f;
+  color: #fff;
+}
+
+.filter-sort-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 20px 4px;
+}
+
+.filter-sort-label {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+.filter-sort-btns {
+  display: flex;
+  gap: 6px;
+  flex: 1;
+}
+
+.filter-sort-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 12px;
+  border-radius: var(--radius-pill);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  background: transparent;
+  border: 1px solid var(--border);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.filter-sort-btn.active {
+  background: var(--accent);
+  color: #ffffff;
+  border-color: var(--accent);
+}

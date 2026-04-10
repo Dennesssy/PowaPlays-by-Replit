@@ -2,6 +2,7 @@ window.App = {
   currentTag: null,
   currentStyle: null,
   currentSearch: '',
+  currentSort: 'popular',
   _sessionId: null,
   _tagData: [],
 
@@ -23,6 +24,7 @@ window.App = {
     this._setupOverlay();
     this._setupRoutes();
     this._setupMobile();
+    this._setupHeroModal();
 
     Auth.onChange(() => {
       this._updateAdminNav();
@@ -265,6 +267,7 @@ window.App = {
       if (this.currentTag) params.tag = this.currentTag;
       if (this.currentStyle) params.style = this.currentStyle;
       if (this.currentSearch) params.search = this.currentSearch;
+      if (this.currentSort && this.currentSort !== 'popular') params.sort = this.currentSort;
 
       const data = await API.getProjects(params);
       const newProjects = data.projects || [];
@@ -570,6 +573,14 @@ window.App = {
       }, 200);
     });
 
+    document.querySelectorAll('.filter-sort-btn').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        this.currentSort = btn.dataset.sort || 'popular';
+        this._syncFilterPanelState();
+        this._applyFilters();
+      });
+    });
+
     document.addEventListener('keydown', (e) => {
       if (e.key === 'Escape' && overlay.classList.contains('open')) {
         closeFilter();
@@ -604,6 +615,10 @@ window.App = {
       countEl.textContent = hasFilters ? `Filtering by: ${parts.join(', ')}` : '';
     }
 
+    document.querySelectorAll('.filter-sort-btn').forEach((btn) => {
+      btn.classList.toggle('active', btn.dataset.sort === this.currentSort);
+    });
+
     document.querySelectorAll('.fp-chip').forEach((c) => {
       c.classList.toggle('active', c.dataset.tag === this.currentTag);
     });
@@ -614,12 +629,33 @@ window.App = {
     });
   },
 
+  openHeroModal() {
+    const modal = document.getElementById('hero-modal');
+    if (modal) modal.style.display = '';
+  },
+
+  closeHeroModal() {
+    const modal = document.getElementById('hero-modal');
+    if (modal) modal.style.display = 'none';
+  },
+
+  _setupHeroModal() {
+    const backdrop = document.getElementById('hero-modal-backdrop');
+    const closeBtn = document.getElementById('hero-modal-close');
+    if (backdrop) backdrop.addEventListener('click', () => this.closeHeroModal());
+    if (closeBtn) closeBtn.addEventListener('click', () => this.closeHeroModal());
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') this.closeHeroModal();
+    });
+  },
+
   async _applyFilters() {
     if (location.pathname === '/' || location.pathname === '') {
       const urlParams = new URLSearchParams();
       if (this.currentTag) urlParams.set('tag', this.currentTag);
       if (this.currentStyle) urlParams.set('style', this.currentStyle);
       if (this.currentSearch) urlParams.set('q', this.currentSearch);
+      if (this.currentSort && this.currentSort !== 'popular') urlParams.set('sort', this.currentSort);
       const qs = urlParams.toString();
       const newUrl = '/' + (qs ? '?' + qs : '');
       history.replaceState(null, '', newUrl);
@@ -631,6 +667,7 @@ window.App = {
     if (this.currentTag) params.tag = this.currentTag;
     if (this.currentStyle) params.style = this.currentStyle;
     if (this.currentSearch) params.search = this.currentSearch;
+    if (this.currentSort && this.currentSort !== 'popular') params.sort = this.currentSort;
 
     try {
       const data = await API.getProjects(params);

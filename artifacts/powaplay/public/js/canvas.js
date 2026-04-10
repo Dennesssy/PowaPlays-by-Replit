@@ -19,6 +19,8 @@ window.Canvas = {
   COLS: 6,
   _virtualRafId: null,
   _lastVirtualCheck: 0,
+  _heroEl: null,
+  _heroGridIndex: -1,
 
   _isMobile() {
     return window.innerWidth <= 768;
@@ -125,6 +127,11 @@ window.Canvas = {
     const totalRows = Math.ceil(this.filtered.length / cols);
     this.container.style.height = (totalRows * (this.TILE_H + this.GAP) - this.GAP) + 'px';
 
+    if (this._heroEl) {
+      const currentTop = parseInt(this._heroEl.style.top) || 0;
+      this._heroEl.style.top = (currentTop + shiftY) + 'px';
+    }
+
     this.y -= shiftY;
     this._applyTransform();
     this._updateVirtualTiles();
@@ -154,6 +161,7 @@ window.Canvas = {
     this._mountedTiles.forEach((el) => el.remove());
     this._mountedTiles.clear();
     this.container.innerHTML = '';
+    this._heroEl = null;
     this.tiles = [];
     this._updateTileSize();
     const cols = this.COLS;
@@ -161,6 +169,9 @@ window.Canvas = {
 
     this.container.style.left = isMobile ? (this.GAP + 'px') : '16px';
     this.container.style.top = isMobile ? (this.GAP + 'px') : '16px';
+
+    const heroCol = Math.floor(cols / 2);
+    this._heroGridIndex = cols + heroCol;
 
     this.filtered.forEach((project, i) => {
       const col = i % cols;
@@ -173,6 +184,13 @@ window.Canvas = {
     const rows = Math.ceil(this.filtered.length / cols);
     this.container.style.width = (cols * (this.TILE_W + this.GAP) - this.GAP) + 'px';
     this.container.style.height = (rows * (this.TILE_H + this.GAP) - this.GAP) + 'px';
+
+    if (this.filtered.length > this._heroGridIndex) {
+      const hx = heroCol * (this.TILE_W + this.GAP);
+      const hy = 1 * (this.TILE_H + this.GAP);
+      this._heroEl = this._createHeroTile(hx, hy);
+      this.container.appendChild(this._heroEl);
+    }
 
     this._updateVirtualTiles();
   },
@@ -238,11 +256,39 @@ window.Canvas = {
 
     for (const idx of toMount) {
       const t = this.tiles[idx];
+      if (idx === this._heroGridIndex) continue;
       const tile = this._createTile(t.project, t.x, t.y, t.index);
       this.container.appendChild(tile);
       t.el = tile;
       this._mountedTiles.set(idx, tile);
     }
+  },
+
+  _createHeroTile(x, y) {
+    const tile = document.createElement('div');
+    tile.className = 'tile tile-hero';
+    tile.style.left = x + 'px';
+    tile.style.top = y + 'px';
+    tile.style.width = this.TILE_W + 'px';
+    tile.style.height = this.TILE_H + 'px';
+    tile.style.zIndex = '10';
+    tile.innerHTML = `
+      <div class="hero-icon">
+        <span>P</span>
+      </div>
+      <div class="hero-body">
+        <div class="hero-title">PowaPlay<br>Webappstore</div>
+        <div class="hero-sub">powered by Replit ⚡</div>
+      </div>
+      <button class="hero-cta">Get Started &rarr;</button>
+    `;
+    tile.addEventListener('click', (e) => {
+      if (this._wasDragging) return;
+      if (typeof App !== 'undefined' && App.openHeroModal) {
+        App.openHeroModal();
+      }
+    });
+    return tile;
   },
 
   _createTile(project, x, y, index) {

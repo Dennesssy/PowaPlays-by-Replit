@@ -15,6 +15,7 @@ router.get("/projects", async (req: Request, res: Response) => {
   const page = Math.max(1, parseInt(req.query.page as string) || 1);
   const limit = Math.min(500, Math.max(1, parseInt(req.query.limit as string) || 50));
   const offset = (page - 1) * limit;
+  const sort = (req.query.sort as string) || "popular";
 
   try {
     const conditions = [
@@ -63,7 +64,11 @@ router.get("/projects", async (req: Request, res: Response) => {
       })
       .from(projectsTable)
       .where(and(...conditions))
-      .orderBy(sql`${projectsTable.favoriteCount} DESC, ${projectsTable.createdAt} DESC`)
+      .orderBy(
+        sort === "newest"
+          ? sql`${projectsTable.createdAt} DESC`
+          : sql`${projectsTable.favoriteCount} DESC, ${projectsTable.createdAt} DESC`
+      )
       .limit(limit)
       .offset(offset);
 

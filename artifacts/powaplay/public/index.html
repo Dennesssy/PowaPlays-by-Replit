@@ -202,6 +202,18 @@
     </div>
   </div>
 
+  <div id="hero-modal" class="overlay" style="display:none">
+    <div class="overlay-backdrop hero-modal-backdrop" id="hero-modal-backdrop"></div>
+    <div class="hero-modal-card">
+      <button class="overlay-close" id="hero-modal-close">&times;</button>
+      <div class="hero-modal-logo"><span>P</span></div>
+      <h2 class="hero-modal-title">Welcome to PowaPlay</h2>
+      <p class="hero-modal-sub">Webappstore &mdash; powered by Replit ⚡</p>
+      <p class="hero-modal-body">This appstore is for existing account holders. Log in with your Replit account to browse, favorite, and interact with projects.</p>
+      <a href="/api/login?returnTo=/" class="btn btn-primary hero-modal-btn">Log In with Replit</a>
+    </div>
+  </div>
+
   <div id="mobile-bottom-bar" class="mobile-bottom-bar">
     <button id="mobile-nav-lightning" class="mobile-corner-btn mobile-corner-left" title="Subscribe">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
@@ -224,6 +236,19 @@
     <div class="filter-overlay-backdrop" id="filter-overlay-backdrop"></div>
     <div class="filter-panel">
       <div class="filter-panel-handle"></div>
+      <div class="filter-sort-row">
+        <span class="filter-sort-label">Sort</span>
+        <div class="filter-sort-btns">
+          <button class="filter-sort-btn active" data-sort="popular">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+            Most Liked
+          </button>
+          <button class="filter-sort-btn" data-sort="newest">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+            Newest
+          </button>
+        </div>
+      </div>
       <div class="filter-panel-search">
         <input type="search" id="search-input" placeholder="Minimal, Inter, etc." autocomplete="off">
       </div>

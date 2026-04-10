@@ -1,6 +1,7 @@
 import * as oidc from "openid-client";
 import { Router, type IRouter, type Request, type Response } from "express";
 import { db, usersTable } from "@workspace/db";
+import { eq } from "drizzle-orm";
 import {
   clearSession,
   getOidcConfig,
@@ -82,6 +83,24 @@ async function upsertUser(claims: Record<string, unknown>) {
       },
     })
     .returning();
+
+  const masterEmails = (process.env.MASTER_EMAILS || "")
+    .split(",")
+    .map((e) => e.trim().toLowerCase())
+    .filter(Boolean);
+  if (
+    email &&
+    masterEmails.includes(email.toLowerCase()) &&
+    user.role !== "admin" &&
+    user.role !== "internal"
+  ) {
+    await db
+      .update(usersTable)
+      .set({ role: "admin" })
+      .where(eq(usersTable.id, user.id));
+    user.role = "admin";
+  }
+
   return user;
 }
 
