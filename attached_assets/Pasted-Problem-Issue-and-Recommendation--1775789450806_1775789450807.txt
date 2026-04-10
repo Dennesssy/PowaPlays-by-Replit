@@ -1,0 +1,14 @@
+Problem, Issue, and Recommendation                                                                                                                                                 
+                                                                                                                                                                                     
+  Problem: The current canvas only loads more tiles when panning toward the bottom edge, which is not true omnidirectional loading — swiping up, left, or right reveals empty space    
+  instead of dynamically loading content from those directions.
+                                                                                                                                                                                       
+  Root Issue: The backend API (GET /api/projects) returns projects as a 1D linearly-sorted list (ordered by favoriteCount DESC, createdAt DESC) with pagination (page, limit), but no  
+  spatial/grid coordinates. Projects have no inherent X/Y position — they're just items in a sequence. True omnidirectional loading would require either (a) backend support for     
+  spatial queries like ?minX=0&maxX=6&minY=0&maxY=10 to fetch content in any direction, or (b) a virtual grid approach where the frontend maps the 1D array onto a 2D coordinate system
+   and preloads enough content to make exploration feel boundless.                                                                                                                   
+                                                                                                                                                                                     
+  Recommendation: Implement a Virtual Grid (frontend-only, no backend changes): preload 500 projects instead of 50, arrange them in a true 2D grid (6 columns × ~83 rows on desktop, 2 
+  columns on mobile), add 4-edge detection that triggers when the viewport approaches any boundary (north, south, east, west), and dynamically append new rows/columns as the user
+  pans. This gives the experience of omnidirectional exploration immediately without database migrations or API changes. If later you need true spatial queries (e.g., "load quadrant  
+  NE"), grid coordinate columns can be added to the schema as a follow-up enhancement. 
