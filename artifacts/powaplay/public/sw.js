@@ -1,4 +1,4 @@
-const CACHE_NAME = 'powaplay-v5';
+const CACHE_NAME = 'powaplay-v6';
 
 self.addEventListener('install', () => {
   self.skipWaiting();
