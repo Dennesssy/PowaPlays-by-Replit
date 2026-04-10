@@ -48,6 +48,10 @@ window.API = {
     return this.get('/api/projects' + (qs ? '?' + qs : ''));
   },
 
+  getTags() {
+    return this.get('/api/projects/tags');
+  },
+
   getProject(id) {
     return this.get('/api/projects/' + id);
   },

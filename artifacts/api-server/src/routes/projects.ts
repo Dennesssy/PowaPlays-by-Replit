@@ -88,6 +88,18 @@ router.get("/projects", async (req: Request, res: Response) => {
   }
 });
 
+router.get("/projects/tags", async (req: Request, res: Response) => {
+  try {
+    const result = await db.execute(
+      sql`SELECT value, COUNT(*)::int as count FROM projects, jsonb_array_elements_text(tags) AS value WHERE is_public = true AND is_hidden = false GROUP BY value ORDER BY count DESC LIMIT 50`
+    );
+    res.json({ tags: result.rows });
+  } catch (err) {
+    req.log.error({ err }, "Error listing tags");
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
 router.get("/projects/:id", async (req: Request, res: Response) => {
   const id = parseInt(req.params.id as string);
   if (isNaN(id)) {

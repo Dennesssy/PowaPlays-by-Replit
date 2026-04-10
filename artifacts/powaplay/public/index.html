@@ -20,12 +20,15 @@
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
       </button>
       <div class="mobile-top-pill">
-        <button class="mobile-top-pill-btn active" data-mnav="discover">Index</button>
-        <button class="mobile-top-pill-btn" data-mnav="info">Info</button>
+        <button class="mobile-top-pill-btn active" data-mnav="discover">Gallery</button>
+        <button class="mobile-top-pill-btn" data-mnav="about">About</button>
       </div>
     </div>
     <div class="mobile-top-right">
-      <button class="mobile-subscribe-btn" id="mobile-subscribe">Subscribe +</button>
+      <button class="mobile-login-btn" id="mobile-login-btn">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+        <span id="mobile-login-text">Log In</span>
+      </button>
     </div>
   </div>
 
@@ -59,20 +62,8 @@
 
   <div id="filter-bar" class="filter-bar">
     <div class="filter-chips" id="filter-chips">
-      <div class="filter-group">
+      <div class="filter-group" id="filter-group-tags">
         <span class="filter-label">Category</span>
-        <button class="chip" data-filter="tag" data-value="ai">AI</button>
-        <button class="chip" data-filter="tag" data-value="productivity">Productivity</button>
-        <button class="chip" data-filter="tag" data-value="saas">SaaS</button>
-        <button class="chip" data-filter="tag" data-value="education">Education</button>
-        <button class="chip" data-filter="tag" data-value="game">Game</button>
-        <button class="chip" data-filter="tag" data-value="fintech">Fintech</button>
-        <button class="chip" data-filter="tag" data-value="health">Health</button>
-        <button class="chip" data-filter="tag" data-value="social">Social</button>
-        <button class="chip" data-filter="tag" data-value="marketplace">Marketplace</button>
-        <button class="chip" data-filter="tag" data-value="community">Community</button>
-        <button class="chip" data-filter="tag" data-value="automation">Automation</button>
-        <button class="chip" data-filter="tag" data-value="travel">Travel</button>
       </div>
     </div>
     <div class="filter-search">
@@ -125,6 +116,45 @@
         <div id="dashboard-content" style="display:none">
           <div class="dashboard-stats" id="dashboard-stats"></div>
           <div class="dashboard-list" id="dashboard-list"></div>
+        </div>
+      </div>
+    </section>
+
+    <section id="page-about" class="page page-scroll">
+      <div class="page-container about-page">
+        <div class="about-hero">
+          <div class="about-logo-big">P</div>
+          <h1 class="about-title">POWAPLAY</h1>
+          <p class="about-tagline">by Replit</p>
+        </div>
+        <div class="about-section">
+          <h2>Why I Built This</h2>
+          <p>During Replit's Agent 4 Buildathon, thousands of builders shipped incredible apps in record time. But after the buildathon ended, those projects were scattered — hard to find, easy to forget. I wanted a place where every project could live on, be discovered, and get the recognition it deserves.</p>
+          <p>POWAPLAY was born from that need: a living gallery of real apps built by real people on Replit. Not mockups. Not demos. Real, working software you can explore with a tap.</p>
+        </div>
+        <div class="about-section">
+          <h2>What It Is Now</h2>
+          <p>A pannable marketplace of 1,300+ projects synced directly from Replit buildathons. Every tile is a real app you can open, try, and favorite. Filter by category, search by name, and discover projects you never knew existed.</p>
+          <p>Behind the scenes, there's a full enterprise observability stack — sync health monitoring, APM metrics, alerting, and an admin audit trail — ensuring the platform stays fast and reliable.</p>
+        </div>
+        <div class="about-section">
+          <h2>What It Could Be</h2>
+          <p>Imagine a decentralized app store where any Replit developer can publish, get feedback, and grow their user base. Curated collections, trending projects, builder profiles, real-time collaboration reviews — a platform where the best Replit apps surface organically.</p>
+          <p>POWAPLAY could become the place builders go to launch, and users go to discover the next great tool, game, or utility — all built on Replit's infrastructure.</p>
+        </div>
+        <div class="about-stats">
+          <div class="about-stat">
+            <span class="about-stat-value" id="about-project-count">1,300+</span>
+            <span class="about-stat-label">Projects</span>
+          </div>
+          <div class="about-stat">
+            <span class="about-stat-value">Hourly</span>
+            <span class="about-stat-label">Sync</span>
+          </div>
+          <div class="about-stat">
+            <span class="about-stat-value">PWA</span>
+            <span class="about-stat-label">Installable</span>
+          </div>
         </div>
       </div>
     </section>

@@ -19,6 +19,7 @@ window.Canvas = {
   TILE_H: 240,
   GAP: 20,
   COLS: 4,
+  _lazyObserver: null,
 
   _isMobile() {
     return window.innerWidth <= 768;
@@ -39,11 +40,34 @@ window.Canvas = {
     }
   },
 
+  _initLazyLoading() {
+    if (this._lazyObserver) return;
+    if (!('IntersectionObserver' in window)) return;
+    this._lazyObserver = new IntersectionObserver((entries) => {
+      entries.forEach((entry) => {
+        if (entry.isIntersecting) {
+          const tile = entry.target;
+          const lazySrc = tile.dataset.lazySrc;
+          if (lazySrc) {
+            const img = tile.querySelector('.tile-thumb-lazy');
+            if (img) {
+              img.src = lazySrc;
+              img.onload = () => img.classList.add('loaded');
+            }
+            delete tile.dataset.lazySrc;
+          }
+          this._lazyObserver.unobserve(tile);
+        }
+      });
+    }, { rootMargin: '200px' });
+  },
+
   init(viewportEl, containerEl) {
     this.el = viewportEl;
     this.container = containerEl;
     this._bindEvents();
     this._updateTileSize();
+    this._initLazyLoading();
     window.addEventListener('resize', () => {
       const wasMobile = this._lastMobileState;
       this._updateTileSize();
@@ -144,25 +168,32 @@ window.Canvas = {
     tile.style.top = y + 'px';
     tile.style.width = this.TILE_W + 'px';
     tile.style.height = this.TILE_H + 'px';
-    tile.style.animationDelay = (index * 40) + 'ms';
+    tile.style.animationDelay = Math.min(index * 40, 600) + 'ms';
 
     const initials = (project.title || 'P').slice(0, 2).toUpperCase();
     const hue = (project.id * 47) % 360;
 
     let thumbHtml;
     if (project.thumbnailUrl) {
-      thumbHtml = `<img src="${project.thumbnailUrl}" alt="" class="tile-thumb" loading="lazy">`;
+      if (this._isMobile() && this._lazyObserver) {
+        thumbHtml = `<img src="" alt="" class="tile-thumb tile-thumb-lazy" data-src="${escapeHtml(project.thumbnailUrl)}">`;
+        tile.dataset.lazySrc = project.thumbnailUrl;
+      } else {
+        thumbHtml = `<img src="${escapeHtml(project.thumbnailUrl)}" alt="" class="tile-thumb" loading="lazy">`;
+      }
     } else {
       thumbHtml = `<div class="tile-placeholder" style="background: linear-gradient(135deg, hsl(${hue}, 40%, 92%), hsl(${hue + 40}, 50%, 85%))"><span>${initials}</span></div>`;
     }
 
     let videoHtml = '';
     if (project.previewVideoUrl) {
-      videoHtml = `<video class="tile-video" muted playsinline loop preload="none" src="${project.previewVideoUrl}"></video>`;
+      videoHtml = `<video class="tile-video" muted playsinline loop preload="none" src="${escapeHtml(project.previewVideoUrl)}"></video>`;
     }
 
     const tags = (project.tags || []).slice(0, 2);
     const tagsHtml = tags.map((t) => `<span class="tile-tag">${escapeHtml(t)}</span>`).join('');
+
+    const favCount = project.favoriteCount || 0;
 
     tile.innerHTML = `
       <div class="tile-media">${thumbHtml}${videoHtml}</div>
@@ -170,11 +201,34 @@ window.Canvas = {
         <div class="tile-title">${escapeHtml(project.title || 'Untitled')}</div>
         <div class="tile-meta">
           <span class="tile-owner">${escapeHtml(project.ownerDisplayName || project.ownerUsername || 'unknown')}</span>
-          <span class="tile-favs">${project.favoriteCount || 0}</span>
+          <button class="tile-fav-btn" data-pid="${project.id}" title="Favorite">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+            <span class="tile-fav-count">${favCount}</span>
+          </button>
         </div>
         <div class="tile-tags">${tagsHtml}</div>
       </div>
     `;
+
+    if (this._lazyObserver && tile.dataset.lazySrc) {
+      this._lazyObserver.observe(tile);
+    }
+
+    const favBtn = tile.querySelector('.tile-fav-btn');
+    favBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (favBtn.disabled) return;
+      if (typeof Auth !== 'undefined' && !Auth.user) {
+        window.location.href = '/api/login?returnTo=/';
+        return;
+      }
+      favBtn.disabled = true;
+      API.addFavorite(project.id).then(() => {
+        project.favoriteCount = (project.favoriteCount || 0) + 1;
+        favBtn.querySelector('.tile-fav-count').textContent = project.favoriteCount;
+        favBtn.classList.add('tile-fav-active');
+      }).catch(() => { favBtn.disabled = false; });
+    });
 
     tile.addEventListener('mouseenter', () => {
       const video = tile.querySelector('.tile-video');

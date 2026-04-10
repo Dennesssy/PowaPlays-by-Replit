@@ -3,6 +3,7 @@ window.App = {
   currentStyle: null,
   currentSearch: '',
   _sessionId: null,
+  _tagData: [],
 
   async init() {
     this._sessionId = this._generateSessionId();
@@ -19,19 +20,21 @@ window.App = {
       document.getElementById('canvas-container')
     );
 
-    this._setupFilters();
     this._setupOverlay();
     this._setupRoutes();
     this._setupMobile();
 
-    await Auth.init();
     Auth.onChange(() => {
       this._updateAdminNav();
+      this._updateMobileLoginBtn();
       if (Router._current === '/dashboard') this._showDashboard();
       if (Router._current === '/feedback') Feedback.showInbox();
       if (Router._current === '/admin') Feedback.showAdminOverview();
       Notifications.init();
     });
+    await Auth.init();
+
+    this._loadTagsAndBuildFilters();
 
     Router.init();
   },
@@ -50,6 +53,56 @@ window.App = {
     if (adminLink && Auth.user && (Auth.user.role === 'internal' || Auth.user.role === 'admin')) {
       adminLink.style.display = '';
     }
+  },
+
+  _updateMobileLoginBtn() {
+    const textEl = document.getElementById('mobile-login-text');
+    if (!textEl) return;
+    if (Auth.user) {
+      textEl.textContent = Auth.user.firstName || 'Projects';
+    } else {
+      textEl.textContent = 'Log In';
+    }
+  },
+
+  async _loadTagsAndBuildFilters() {
+    try {
+      const data = await API.getTags();
+      this._tagData = data.tags || [];
+    } catch {
+      this._tagData = [
+        { value: 'ai', count: 290 },
+        { value: 'productivity', count: 103 },
+        { value: 'saas', count: 72 },
+        { value: 'education', count: 71 },
+        { value: 'community', count: 59 },
+        { value: 'fintech', count: 44 },
+        { value: 'game', count: 39 },
+        { value: 'social', count: 37 },
+        { value: 'marketplace', count: 36 },
+        { value: 'automation', count: 34 },
+        { value: 'health', count: 33 },
+        { value: 'travel', count: 31 },
+      ];
+    }
+
+    this._buildDesktopFilterChips();
+    this._setupFilters();
+  },
+
+  _buildDesktopFilterChips() {
+    const group = document.getElementById('filter-group-tags');
+    if (!group) return;
+
+    const topTags = this._tagData.slice(0, 14);
+    topTags.forEach((t) => {
+      const btn = document.createElement('button');
+      btn.className = 'chip';
+      btn.dataset.filter = 'tag';
+      btn.dataset.value = t.value;
+      btn.textContent = t.value.charAt(0).toUpperCase() + t.value.slice(1);
+      group.appendChild(btn);
+    });
   },
 
   _trackPageView(path) {
@@ -85,6 +138,7 @@ window.App = {
     Router.add('/feedback', () => this._showFeedback());
     Router.add('/feedback/:id', (params) => this._showFeedbackThread(params.id));
     Router.add('/admin', () => this._showAdmin());
+    Router.add('/about', () => this._showAbout());
     Router.add('/u/:username', (params) => this._showProfile(params.username));
   },
 
@@ -144,12 +198,6 @@ window.App = {
     }
     viewport._scrollHandler = () => this._checkLoadMore();
     viewport.addEventListener('scroll', viewport._scrollHandler);
-
-    if (!this._canvasObserver) {
-      const sentinel = document.createElement('div');
-      sentinel.id = 'canvas-sentinel';
-      sentinel.style.cssText = 'position:absolute;bottom:0;width:1px;height:1px;';
-    }
   },
 
   async _loadMoreProjects() {
@@ -204,6 +252,14 @@ window.App = {
     }
     this._showPage('admin');
     AdminDashboard.load();
+  },
+
+  _showAbout() {
+    this._showPage('about');
+    const countEl = document.getElementById('about-project-count');
+    if (countEl && this._discoverTotal) {
+      countEl.textContent = this._discoverTotal.toLocaleString() + '+';
+    }
   },
 
   async _showProfile(username) {
@@ -421,7 +477,8 @@ window.App = {
     document.body.style.overflow = 'hidden';
 
     const liveUrl = project.demoUrl || project.url;
-    iframe.src = liveUrl;
+    const isValidUrl = /^https?:\/\//i.test(liveUrl || '');
+    iframe.src = isValidUrl ? liveUrl : '';
     iframe.style.display = '';
     fallback.style.display = 'none';
 
@@ -438,24 +495,44 @@ window.App = {
     const safeTitle = escapeHtml(project.title);
     const safeDisplayName = escapeHtml(project.ownerDisplayName || project.ownerUsername);
     const safeOwner = escapeHtml(project.ownerUsername);
-    const safeDesc = escapeHtml(project.description);
+    const safeDesc = escapeHtml(project.description || '');
+    const safeLiveUrl = escapeHtml(liveUrl || '');
+
+    const descParagraphs = safeDesc ? safeDesc.split(/\n+/).filter(Boolean).map((p) => `<p>${p}</p>`).join('') : '';
+
+    const createdDate = project.createdAt ? new Date(project.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '';
 
     meta.innerHTML = `
       <h2 class="overlay-title">${safeTitle}</h2>
-      <div class="overlay-owner">
-        ${project.ownerAvatarUrl ? `<img src="${escapeHtml(project.ownerAvatarUrl)}" alt="" class="overlay-avatar">` : ''}
+      <a class="overlay-owner" href="/u/${safeOwner}" data-link>
+        ${project.ownerAvatarUrl ? `<img src="${escapeHtml(project.ownerAvatarUrl)}" alt="" class="overlay-avatar">` : `<div class="overlay-avatar-placeholder">${(safeDisplayName[0] || 'U').toUpperCase()}</div>`}
         <span>${safeDisplayName}</span>
-      </div>
-      ${project.description ? `<p class="overlay-desc">${safeDesc}</p>` : ''}
+      </a>
+      ${createdDate ? `<div class="overlay-date">${createdDate}</div>` : ''}
+      ${descParagraphs ? `<div class="overlay-desc">${descParagraphs}</div>` : ''}
       <div class="overlay-tags">${tags}</div>
+      ${safeLiveUrl ? `<div class="overlay-url"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg><span>${safeLiveUrl.replace(/^https?:\/\//, '').slice(0, 40)}</span></div>` : ''}
       <div class="overlay-actions">
-        <button class="btn btn-primary overlay-visit-btn">Visit</button>
-        ${project.replitUrl ? `<button class="btn btn-ghost overlay-replit-btn">View on Replit</button>` : ''}
+        <button class="btn btn-primary overlay-visit-btn">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+          Visit App
+        </button>
         <button class="btn btn-ghost overlay-fav-btn" data-id="${project.id}">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
           ${project.favoriteCount || 0} Favorites
         </button>
-        <button class="btn btn-ghost overlay-feedback-btn">Send Feedback</button>
-        <button class="btn btn-ghost overlay-share-btn">Share</button>
+        ${project.replitUrl ? `<button class="btn btn-ghost overlay-replit-btn">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+          View on Replit
+        </button>` : ''}
+        <button class="btn btn-ghost overlay-feedback-btn">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+          Send Feedback
+        </button>
+        <button class="btn btn-ghost overlay-share-btn">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
+          Share
+        </button>
       </div>
     `;
 
@@ -463,20 +540,39 @@ window.App = {
     const replitBtn = meta.querySelector('.overlay-replit-btn');
     if (replitBtn) replitBtn.addEventListener('click', () => window.open(project.replitUrl, '_blank'));
     meta.querySelector('.overlay-feedback-btn').addEventListener('click', () => Feedback.showSubmitForm(project.id, project.title || ''));
-    meta.querySelector('.overlay-share-btn').addEventListener('click', () => navigator.clipboard.writeText(location.origin + '/u/' + (project.ownerUsername || '')));
+    meta.querySelector('.overlay-share-btn').addEventListener('click', () => {
+      navigator.clipboard.writeText(location.origin + '/u/' + (project.ownerUsername || ''));
+      const btn = meta.querySelector('.overlay-share-btn');
+      const orig = btn.innerHTML;
+      btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg> Copied!';
+      setTimeout(() => { btn.innerHTML = orig; }, 1500);
+    });
 
     const favBtn = meta.querySelector('.overlay-fav-btn');
     if (favBtn) {
       favBtn.addEventListener('click', async () => {
+        if (favBtn.disabled) return;
         if (!Auth.user) {
           window.location.href = '/api/login?returnTo=/';
           return;
         }
+        favBtn.disabled = true;
         try {
           await API.addFavorite(project.id);
           project.favoriteCount = (project.favoriteCount || 0) + 1;
-          favBtn.textContent = project.favoriteCount + ' Favorites';
-        } catch {}
+          favBtn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg> ${project.favoriteCount} Favorites`;
+        } catch { favBtn.disabled = false; }
+      });
+    }
+
+    const ownerLink = meta.querySelector('.overlay-owner');
+    if (ownerLink) {
+      ownerLink.addEventListener('click', (e) => {
+        e.preventDefault();
+        overlay.style.display = 'none';
+        document.body.style.overflow = '';
+        iframe.src = '';
+        Router.navigate('/u/' + (project.ownerUsername || ''));
       });
     }
   },
@@ -496,6 +592,7 @@ window.App = {
         if (overlay.style.display !== 'none') close();
         const fbOverlay = document.getElementById('feedback-submit-overlay');
         if (fbOverlay.style.display !== 'none') Feedback.hideSubmitForm();
+        if (this._mobileFilterOpen) this._closeMobileFilter();
       }
     });
   },
@@ -530,6 +627,7 @@ window.App = {
     const indexBtn = document.getElementById('mobile-index-btn');
     const feedbackBtn = document.getElementById('mobile-feedback-btn');
     const refreshBtn = document.getElementById('mobile-nav-refresh');
+    const loginBtn = document.getElementById('mobile-login-btn');
 
     if (!filterBtn) return;
 
@@ -551,6 +649,16 @@ window.App = {
     if (refreshBtn) {
       refreshBtn.addEventListener('click', () => {
         this._showDiscover();
+      });
+    }
+
+    if (loginBtn) {
+      loginBtn.addEventListener('click', () => {
+        if (Auth.user) {
+          Router.navigate('/dashboard');
+        } else {
+          window.location.href = '/api/login?returnTo=/dashboard';
+        }
       });
     }
 
@@ -580,7 +688,7 @@ window.App = {
         btn.classList.add('active');
         const nav = btn.dataset.mnav;
         if (nav === 'discover') Router.navigate('/');
-        if (nav === 'info') Router.navigate('/dashboard');
+        if (nav === 'about') Router.navigate('/about');
       });
     });
   },
@@ -611,25 +719,16 @@ window.App = {
 
   _buildMobileFilterChips() {
     const container = document.getElementById('mobile-filter-chips');
-    const tagCounts = {};
-    Canvas.projects.forEach((p) => {
-      (p.tags || []).forEach((t) => {
-        const lower = t.toLowerCase();
-        tagCounts[lower] = (tagCounts[lower] || 0) + 1;
-      });
-    });
 
-    const topTags = Object.entries(tagCounts)
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 8);
+    const topTags = this._tagData.slice(0, 8);
+    const icons = { ai: '🤖', productivity: '⚡', saas: '☁️', education: '📚', game: '🎮', fintech: '💰', health: '🏥', social: '💬', marketplace: '🏪', community: '👥', automation: '⚙️', travel: '✈️', 'mobile app': '📱', marketing: '📣', 'ai assistant': '🧠', 'agentic ai': '🤖', 'ai agent': '🤖', healthcare: '🏥', sports: '⚽', 'developer tools': '🛠️', fitness: '💪', 'real estate': '🏠' };
 
-    const icons = { ai: '🤖', productivity: '⚡', saas: '☁️', education: '📚', game: '🎮', fintech: '💰', health: '🏥', social: '💬', marketplace: '🏪', community: '👥', automation: '⚙️', travel: '✈️' };
-
-    container.innerHTML = topTags.map(([tag]) => {
+    container.innerHTML = topTags.map((t) => {
+      const tag = t.value;
       const display = tag.charAt(0).toUpperCase() + tag.slice(1);
       const icon = icons[tag] || '📦';
       const isActive = this.currentTag === tag ? ' active' : '';
-      return `<button class="mf-chip${isActive}" data-mftag="${tag}"><span class="mf-chip-icon">${icon}</span>${display}</button>`;
+      return `<button class="mf-chip${isActive}" data-mftag="${escapeHtml(tag)}"><span class="mf-chip-icon">${icon}</span>${escapeHtml(display)}</button>`;
     }).join('');
 
     container.querySelectorAll('.mf-chip').forEach((chip) => {
@@ -645,7 +744,7 @@ window.App = {
         }
         document.querySelectorAll('.chip[data-filter="tag"]').forEach((c) => c.classList.remove('active'));
         if (this.currentTag) {
-          const desktopChip = document.querySelector(`.chip[data-value="${this.currentTag}"]`);
+          const desktopChip = document.querySelector(`.chip[data-value="${CSS.escape(this.currentTag)}"]`);
           if (desktopChip) desktopChip.classList.add('active');
         }
         this._applyFilters();
@@ -658,29 +757,12 @@ window.App = {
     const list = document.getElementById('mobile-filter-list');
     const tab = this._mobileActiveTab;
 
-    const tagCounts = {};
-    Canvas.projects.forEach((p) => {
-      (p.tags || []).forEach((t) => {
-        const lower = t.toLowerCase();
-        tagCounts[lower] = (tagCounts[lower] || 0) + 1;
-      });
-    });
-
     let items = [];
 
     if (tab === 'types') {
-      const typeKeys = ['ai', 'productivity', 'saas', 'education', 'game', 'fintech', 'health', 'social', 'marketplace', 'community', 'automation', 'travel', 'tool', 'analytics', 'design', 'portfolio', 'chat', 'music', 'video', 'photo'];
-      typeKeys.forEach((key) => {
-        if (tagCounts[key]) {
-          items.push({ name: key.charAt(0).toUpperCase() + key.slice(1), count: tagCounts[key], tag: key });
-        }
+      this._tagData.forEach((t) => {
+        items.push({ name: t.value.charAt(0).toUpperCase() + t.value.slice(1), count: t.count, tag: t.value });
       });
-      Object.entries(tagCounts)
-        .filter(([k]) => !typeKeys.includes(k))
-        .sort((a, b) => b[1] - a[1])
-        .forEach(([key, count]) => {
-          items.push({ name: key.charAt(0).toUpperCase() + key.slice(1), count, tag: key });
-        });
     } else if (tab === 'styles') {
       const styleMap = {};
       Canvas.projects.forEach((p) => {
@@ -693,16 +775,20 @@ window.App = {
         items.push({ name: key.charAt(0).toUpperCase() + key.slice(1), count, style: key });
       });
       if (items.length === 0) {
-        items.push({ name: 'Minimal', count: Math.floor(Canvas.projects.length * 0.3), style: 'minimal' });
-        items.push({ name: 'Modern', count: Math.floor(Canvas.projects.length * 0.25), style: 'modern' });
-        items.push({ name: 'Playful', count: Math.floor(Canvas.projects.length * 0.15), style: 'playful' });
-        items.push({ name: 'Corporate', count: Math.floor(Canvas.projects.length * 0.1), style: 'corporate' });
+        items = [
+          { name: 'Minimal', count: 0, style: 'minimal' },
+          { name: 'Modern', count: 0, style: 'modern' },
+          { name: 'Playful', count: 0, style: 'playful' },
+          { name: 'Corporate', count: 0, style: 'corporate' },
+        ];
       }
     } else if (tab === 'frameworks') {
       const fwTags = ['react', 'vue', 'svelte', 'nextjs', 'express', 'flask', 'django', 'node', 'python', 'typescript', 'javascript', 'html', 'css', 'tailwind'];
+      const tagMap = {};
+      this._tagData.forEach((t) => { tagMap[t.value] = t.count; });
       fwTags.forEach((fw) => {
-        if (tagCounts[fw]) {
-          items.push({ name: fw.charAt(0).toUpperCase() + fw.slice(1), count: tagCounts[fw], tag: fw });
+        if (tagMap[fw]) {
+          items.push({ name: fw.charAt(0).toUpperCase() + fw.slice(1), count: tagMap[fw], tag: fw });
         }
       });
     }
@@ -730,7 +816,7 @@ window.App = {
           }
           document.querySelectorAll('.chip[data-filter="tag"]').forEach((c) => c.classList.remove('active'));
           if (this.currentTag) {
-            const desktopChip = document.querySelector(`.chip[data-value="${this.currentTag}"]`);
+            const desktopChip = document.querySelector(`.chip[data-value="${CSS.escape(this.currentTag)}"]`);
             if (desktopChip) desktopChip.classList.add('active');
           }
         }
