@@ -1,8 +1,6 @@
-const CACHE_NAME = 'powaplay-v1';
-const PRECACHE = ['/', '/css/style.css', '/js/app.js', '/js/api.js', '/js/router.js', '/js/auth.js', '/js/canvas.js'];
+const CACHE_NAME = 'powaplay-v2';
 
-self.addEventListener('install', (e) => {
-  e.waitUntil(caches.open(CACHE_NAME).then((c) => c.addAll(PRECACHE)));
+self.addEventListener('install', () => {
   self.skipWaiting();
 });
 
@@ -18,6 +16,14 @@ self.addEventListener('activate', (e) => {
 self.addEventListener('fetch', (e) => {
   if (e.request.url.includes('/api/')) return;
   e.respondWith(
-    caches.match(e.request).then((r) => r || fetch(e.request))
+    fetch(e.request)
+      .then((response) => {
+        if (response.ok) {
+          const clone = response.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(e.request, clone));
+        }
+        return response;
+      })
+      .catch(() => caches.match(e.request))
   );
 });

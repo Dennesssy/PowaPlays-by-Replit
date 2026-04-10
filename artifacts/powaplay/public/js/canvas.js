@@ -20,15 +20,43 @@ window.Canvas = {
   GAP: 20,
   COLS: 4,
 
+  _isMobile() {
+    return window.innerWidth <= 768;
+  },
+
+  _updateTileSize() {
+    if (this._isMobile()) {
+      const vw = window.innerWidth;
+      this.TILE_W = vw - 32;
+      this.TILE_H = Math.round(this.TILE_W * 0.72);
+      this.GAP = 16;
+      this.COLS = 1;
+    } else {
+      this.TILE_W = 320;
+      this.TILE_H = 240;
+      this.GAP = 20;
+      this._updateCols();
+    }
+  },
+
   init(viewportEl, containerEl) {
     this.el = viewportEl;
     this.container = containerEl;
     this._bindEvents();
-    this._updateCols();
-    window.addEventListener('resize', () => this._updateCols());
+    this._updateTileSize();
+    window.addEventListener('resize', () => {
+      const wasMobile = this._lastMobileState;
+      this._updateTileSize();
+      if (wasMobile !== this._isMobile()) {
+        this.render();
+      }
+      this._lastMobileState = this._isMobile();
+    });
+    this._lastMobileState = this._isMobile();
   },
 
   _updateCols() {
+    if (!this.el) return;
     const w = this.el.clientWidth;
     this.COLS = Math.max(1, Math.floor(w / (this.TILE_W + this.GAP)));
   },
@@ -37,6 +65,25 @@ window.Canvas = {
     this.projects = projects;
     this.filtered = projects;
     this.render();
+  },
+
+  appendProjects(newProjects) {
+    this.projects = this.projects.concat(newProjects);
+    this.filtered = this.filtered.concat(newProjects);
+    const cols = this.COLS;
+    const startIndex = this.tiles.length;
+    newProjects.forEach((project, i) => {
+      const idx = startIndex + i;
+      const col = idx % cols;
+      const row = Math.floor(idx / cols);
+      const x = col * (this.TILE_W + this.GAP);
+      const y = row * (this.TILE_H + this.GAP);
+      const tile = this._createTile(project, x, y, idx);
+      this.container.appendChild(tile);
+      this.tiles.push({ el: tile, x, y, project });
+    });
+    const rows = Math.ceil(this.filtered.length / cols);
+    this.container.style.height = (rows * (this.TILE_H + this.GAP) - this.GAP) + 'px';
   },
 
   filter(tag, style, search) {
@@ -62,7 +109,17 @@ window.Canvas = {
   render() {
     this.container.innerHTML = '';
     this.tiles = [];
+    this._updateTileSize();
     const cols = this.COLS;
+    const isMobile = this._isMobile();
+
+    if (isMobile) {
+      this.container.style.left = '16px';
+      this.container.style.top = '16px';
+    } else {
+      this.container.style.left = '50px';
+      this.container.style.top = '50px';
+    }
 
     this.filtered.forEach((project, i) => {
       const col = i % cols;
@@ -96,7 +153,7 @@ window.Canvas = {
     if (project.thumbnailUrl) {
       thumbHtml = `<img src="${project.thumbnailUrl}" alt="" class="tile-thumb" loading="lazy">`;
     } else {
-      thumbHtml = `<div class="tile-placeholder" style="background: linear-gradient(135deg, hsl(${hue}, 60%, 15%), hsl(${hue + 40}, 70%, 25%))"><span>${initials}</span></div>`;
+      thumbHtml = `<div class="tile-placeholder" style="background: linear-gradient(135deg, hsl(${hue}, 40%, 92%), hsl(${hue + 40}, 50%, 85%))"><span>${initials}</span></div>`;
     }
 
     let videoHtml = '';
@@ -105,14 +162,14 @@ window.Canvas = {
     }
 
     const tags = (project.tags || []).slice(0, 2);
-    const tagsHtml = tags.map((t) => `<span class="tile-tag">${t}</span>`).join('');
+    const tagsHtml = tags.map((t) => `<span class="tile-tag">${escapeHtml(t)}</span>`).join('');
 
     tile.innerHTML = `
       <div class="tile-media">${thumbHtml}${videoHtml}</div>
       <div class="tile-info">
-        <div class="tile-title">${project.title || 'Untitled'}</div>
+        <div class="tile-title">${escapeHtml(project.title || 'Untitled')}</div>
         <div class="tile-meta">
-          <span class="tile-owner">${project.ownerUsername || 'unknown'}</span>
+          <span class="tile-owner">${escapeHtml(project.ownerDisplayName || project.ownerUsername || 'unknown')}</span>
           <span class="tile-favs">${project.favoriteCount || 0}</span>
         </div>
         <div class="tile-tags">${tagsHtml}</div>
@@ -217,7 +274,19 @@ window.Canvas = {
   },
 
   _applyTransform() {
-    this.container.style.transform = `translate(${this.x}px, ${this.y}px)`;
+    this.container.style.transform = `translate3d(${this.x}px, ${this.y}px, 0)`;
+    this._checkEdge();
+  },
+
+  _checkEdge() {
+    const containerH = parseInt(this.container.style.height) || 0;
+    const viewportH = this.el.clientHeight;
+    const scrolledY = -this.y;
+    if (containerH > 0 && scrolledY + viewportH > containerH - 600) {
+      if (typeof App !== 'undefined' && App._loadMoreProjects) {
+        App._loadMoreProjects();
+      }
+    }
   },
 
   _startInertia() {

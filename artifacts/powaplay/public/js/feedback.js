@@ -296,8 +296,8 @@ window.Feedback = {
     document.body.style.overflow = '';
   },
 
-  async showAdminOverview() {
-    const container = document.getElementById('admin-feedback-container');
+  async showAdminOverview(targetContainer) {
+    const container = targetContainer || document.getElementById('admin-feedback-container');
     if (!container) return;
 
     container.innerHTML = '<div class="loading">Loading overview...</div>';

@@ -1,7 +1,6 @@
 import { Router, type IRouter, type Request, type Response } from "express";
 import { db, usersTable, projectsTable } from "@workspace/db";
 import { eq, and, sql } from "drizzle-orm";
-import { GetUserProfileParams } from "@workspace/api-zod";
 
 const router: IRouter = Router();
 
@@ -14,8 +13,8 @@ router.get("/me", (req: Request, res: Response) => {
 });
 
 router.get("/users/:username/profile", async (req: Request, res: Response) => {
-  const parsed = GetUserProfileParams.safeParse(req.params);
-  if (!parsed.success) {
+  const username = req.params.username as string;
+  if (!username) {
     res.status(400).json({ error: "Invalid username" });
     return;
   }
@@ -24,7 +23,7 @@ router.get("/users/:username/profile", async (req: Request, res: Response) => {
     const [user] = await db
       .select()
       .from(usersTable)
-      .where(eq(usersTable.username, parsed.data.username));
+      .where(eq(usersTable.username, username));
 
     if (!user) {
       res.status(404).json({ error: "User not found" });
@@ -60,8 +59,8 @@ router.get("/users/:username/profile", async (req: Request, res: Response) => {
 router.get(
   "/users/:username/projects",
   async (req: Request, res: Response) => {
-    const parsed = GetUserProfileParams.safeParse(req.params);
-    if (!parsed.success) {
+    const username = req.params.username as string;
+    if (!username) {
       res.status(400).json({ error: "Invalid username" });
       return;
     }
@@ -70,7 +69,7 @@ router.get(
       const [user] = await db
         .select()
         .from(usersTable)
-        .where(eq(usersTable.username, parsed.data.username));
+        .where(eq(usersTable.username, username));
 
       if (!user) {
         res.status(404).json({ error: "User not found" });

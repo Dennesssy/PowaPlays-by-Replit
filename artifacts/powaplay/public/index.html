@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>POWAPLAY by Replit</title>
   <meta name="description" content="A decentralized PWA marketplace. Discover, showcase, and install web apps built on Replit.">
-  <meta name="theme-color" content="#0a0a0f">
+  <meta name="theme-color" content="#ffffff">
   <link rel="manifest" href="/manifest.json">
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚡</text></svg>">
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -13,7 +13,22 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/css/style.css">
 </head>
-<body class="dark">
+<body>
+  <div id="mobile-top-bar" class="mobile-top-bar">
+    <div class="mobile-top-left">
+      <button class="mobile-corner-btn" id="mobile-top-lightning" title="Actions">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+      </button>
+      <div class="mobile-top-pill">
+        <button class="mobile-top-pill-btn active" data-mnav="discover">Index</button>
+        <button class="mobile-top-pill-btn" data-mnav="info">Info</button>
+      </div>
+    </div>
+    <div class="mobile-top-right">
+      <button class="mobile-subscribe-btn" id="mobile-subscribe">Subscribe +</button>
+    </div>
+  </div>
+
   <header id="app-header">
     <div class="header-left">
       <a href="/" class="logo" data-link>
@@ -45,22 +60,19 @@
   <div id="filter-bar" class="filter-bar">
     <div class="filter-chips" id="filter-chips">
       <div class="filter-group">
-        <span class="filter-label">Type</span>
-        <button class="chip" data-filter="tag" data-value="Game">Game</button>
-        <button class="chip" data-filter="tag" data-value="Portfolio">Portfolio</button>
-        <button class="chip" data-filter="tag" data-value="Tool">Tool</button>
-        <button class="chip" data-filter="tag" data-value="Dashboard">Dashboard</button>
-        <button class="chip" data-filter="tag" data-value="AI">AI</button>
-        <button class="chip" data-filter="tag" data-value="Art">Art</button>
-        <button class="chip" data-filter="tag" data-value="E-commerce">E-commerce</button>
-        <button class="chip" data-filter="tag" data-value="Other">Other</button>
-      </div>
-      <div class="filter-group">
-        <span class="filter-label">Style</span>
-        <button class="chip" data-filter="style" data-value="Dark">Dark</button>
-        <button class="chip" data-filter="style" data-value="Minimal">Minimal</button>
-        <button class="chip" data-filter="style" data-value="Colorful">Colorful</button>
-        <button class="chip" data-filter="style" data-value="3D">3D</button>
+        <span class="filter-label">Category</span>
+        <button class="chip" data-filter="tag" data-value="ai">AI</button>
+        <button class="chip" data-filter="tag" data-value="productivity">Productivity</button>
+        <button class="chip" data-filter="tag" data-value="saas">SaaS</button>
+        <button class="chip" data-filter="tag" data-value="education">Education</button>
+        <button class="chip" data-filter="tag" data-value="game">Game</button>
+        <button class="chip" data-filter="tag" data-value="fintech">Fintech</button>
+        <button class="chip" data-filter="tag" data-value="health">Health</button>
+        <button class="chip" data-filter="tag" data-value="social">Social</button>
+        <button class="chip" data-filter="tag" data-value="marketplace">Marketplace</button>
+        <button class="chip" data-filter="tag" data-value="community">Community</button>
+        <button class="chip" data-filter="tag" data-value="automation">Automation</button>
+        <button class="chip" data-filter="tag" data-value="travel">Travel</button>
       </div>
     </div>
     <div class="filter-search">
@@ -70,7 +82,7 @@
     </div>
   </div>
 
-  <main id="app-main">
+  <main id="app-main" class="with-filter-bar">
     <section id="page-discover" class="page active">
       <div id="canvas-viewport" class="canvas-viewport">
         <div id="canvas-container" class="canvas-container"></div>
@@ -118,12 +130,25 @@
     </section>
 
     <section id="page-admin" class="page page-scroll">
-      <div class="page-container">
+      <div class="page-container" style="max-width:1100px">
         <div class="dashboard-header">
-          <h1>Admin Overview</h1>
-          <p class="dashboard-subtitle">Global feedback observability and user management metrics</p>
+          <h1>System Dashboard</h1>
+          <p class="dashboard-subtitle">Platform observability, sync health, APM metrics, and audit trail</p>
         </div>
-        <div id="admin-feedback-container"></div>
+        <div class="admin-tabs" id="admin-tabs">
+          <button class="admin-tab active" data-tab="overview">Overview</button>
+          <button class="admin-tab" data-tab="sync">Sync</button>
+          <button class="admin-tab" data-tab="apm">APM</button>
+          <button class="admin-tab" data-tab="alerts">Alerts</button>
+          <button class="admin-tab" data-tab="audit">Audit</button>
+          <button class="admin-tab" data-tab="feedback">Feedback</button>
+        </div>
+        <div id="admin-panel-overview" class="admin-panel"></div>
+        <div id="admin-panel-sync" class="admin-panel" style="display:none"></div>
+        <div id="admin-panel-apm" class="admin-panel" style="display:none"></div>
+        <div id="admin-panel-alerts" class="admin-panel" style="display:none"></div>
+        <div id="admin-panel-audit" class="admin-panel" style="display:none"></div>
+        <div id="admin-panel-feedback" class="admin-panel" style="display:none"></div>
       </div>
     </section>
   </main>
@@ -155,12 +180,60 @@
     </div>
   </div>
 
+  <div id="mobile-bottom-bar" class="mobile-bottom-bar">
+    <button id="mobile-nav-lightning" class="mobile-corner-btn mobile-corner-left" title="Subscribe">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+    </button>
+    <div class="mobile-pill-nav">
+      <button id="mobile-filter-btn" class="mobile-pill-icon" title="Filters">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="4" y1="6" x2="20" y2="6"/><line x1="8" y1="12" x2="16" y2="12"/><line x1="11" y1="18" x2="13" y2="18"/></svg>
+      </button>
+      <button id="mobile-index-btn" class="mobile-pill-icon mobile-pill-active" title="Index">
+        <span class="mobile-pill-label">1</span>
+      </button>
+      <button id="mobile-feedback-btn" class="mobile-pill-icon" title="Feedback">F</button>
+    </div>
+    <button id="mobile-nav-refresh" class="mobile-corner-btn mobile-corner-right" title="Refresh">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 4v6h6"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>
+    </button>
+  </div>
+
+  <div id="mobile-filter-overlay" class="mobile-filter-overlay">
+    <div class="mobile-filter-backdrop" id="mobile-filter-backdrop"></div>
+    <div class="mobile-filter-panel">
+      <div class="mobile-filter-handle"></div>
+      <div class="mobile-filter-search">
+        <input type="search" id="mobile-search-input" placeholder="Minimal, Inter, etc." autocomplete="off">
+      </div>
+      <div class="mobile-filter-chips" id="mobile-filter-chips"></div>
+      <div class="mobile-filter-tabs">
+        <button class="mobile-tab active" data-mtab="types">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+          Types
+        </button>
+        <button class="mobile-tab" data-mtab="styles">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/></svg>
+          Styles
+        </button>
+        <button class="mobile-tab" data-mtab="frameworks">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+          Frameworks
+        </button>
+      </div>
+      <div class="mobile-filter-list" id="mobile-filter-list"></div>
+      <div class="mobile-filter-done-row">
+        <button id="mobile-filter-done" class="mobile-filter-done-btn">Done</button>
+      </div>
+    </div>
+  </div>
+
   <script src="/js/api.js"></script>
   <script src="/js/router.js"></script>
   <script src="/js/auth.js"></script>
   <script src="/js/canvas.js"></script>
   <script src="/js/feedback.js"></script>
   <script src="/js/notifications.js"></script>
+  <script src="/js/admin.js"></script>
   <script src="/js/app.js"></script>
 </body>
 </html>

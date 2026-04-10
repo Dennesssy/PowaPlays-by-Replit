@@ -1,14 +1,17 @@
 import { sql } from "drizzle-orm";
-import { pgTable, serial, varchar, text, boolean, timestamp, integer, jsonb } from "drizzle-orm/pg-core";
+import { pgTable, serial, varchar, text, boolean, timestamp, integer, jsonb, index } from "drizzle-orm/pg-core";
 import { usersTable } from "./auth";
 
 export const projectsTable = pgTable("projects", {
   id: serial("id").primaryKey(),
   ownerId: varchar("owner_id").notNull().references(() => usersTable.id),
   replitProjectId: varchar("replit_project_id"),
+  externalId: varchar("external_id").unique(),
   title: varchar("title").notNull(),
   slug: varchar("slug").notNull(),
   url: varchar("url").notNull(),
+  demoUrl: varchar("demo_url"),
+  replitUrl: varchar("replit_url"),
   description: text("description"),
   tags: jsonb("tags").default(sql`'[]'::jsonb`),
   style: varchar("style"),
@@ -16,11 +19,20 @@ export const projectsTable = pgTable("projects", {
   isHidden: boolean("is_hidden").notNull().default(false),
   thumbnailUrl: varchar("thumbnail_url"),
   previewVideoUrl: varchar("preview_video_url"),
+  videoUrl: varchar("video_url"),
   previewStatus: varchar("preview_status").default("pending"),
   favoriteCount: integer("favorite_count").notNull().default(0),
+  buildathonId: varchar("buildathon_id"),
+  ownerDisplayName: varchar("owner_display_name"),
+  ownerAvatarUrl: varchar("owner_avatar_url"),
+  ownerUsername: varchar("owner_username"),
+  syncedAt: timestamp("synced_at", { withTimezone: true }).defaultNow(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
-});
+}, (table) => [
+  index("idx_projects_external_id").on(table.externalId),
+  index("idx_projects_buildathon_id").on(table.buildathonId),
+]);
 
 export type Project = typeof projectsTable.$inferSelect;
 export type InsertProject = typeof projectsTable.$inferInsert;

@@ -7,6 +7,8 @@ import favoritesRouter from "./favorites";
 import feedbackRouter from "./feedback";
 import analyticsRouter from "./analytics";
 import notificationsRouter from "./notifications";
+import syncRouter from "./sync";
+import adminRouter from "./admin";
 
 const router: IRouter = Router();
 
@@ -18,5 +20,7 @@ router.use(favoritesRouter);
 router.use(feedbackRouter);
 router.use(analyticsRouter);
 router.use(notificationsRouter);
+router.use(syncRouter);
+router.use(adminRouter);
 
 export default router;

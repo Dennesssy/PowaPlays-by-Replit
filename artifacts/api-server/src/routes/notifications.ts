@@ -1,6 +1,6 @@
 import { Router, type IRouter, type Request, type Response } from "express";
 import { db, notificationsTable } from "@workspace/db";
-import { eq, sql, isNull, desc } from "drizzle-orm";
+import { eq, sql, desc } from "drizzle-orm";
 
 const router: IRouter = Router();
 
@@ -50,7 +50,7 @@ router.post("/me/notifications/:id/read", async (req: Request, res: Response) =>
     return;
   }
 
-  const id = parseInt(req.params.id);
+  const id = parseInt(req.params.id as string);
   if (isNaN(id)) {
     res.status(400).json({ error: "Invalid notification ID" });
     return;

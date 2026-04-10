@@ -1,6 +1,6 @@
 import { Router, type IRouter, type Request, type Response } from "express";
 import { db, feedbackTable, feedbackResponsesTable, usersTable, notificationsTable, projectsTable } from "@workspace/db";
-import { eq, and, or, sql, desc, gte } from "drizzle-orm";
+import { eq, and, or, sql, desc } from "drizzle-orm";
 
 const router: IRouter = Router();
 
@@ -203,7 +203,7 @@ router.post("/feedback", async (req: Request, res: Response) => {
 });
 
 router.get("/feedback/:id", async (req: Request, res: Response) => {
-  const id = parseInt(req.params.id);
+  const id = parseInt(req.params.id as string);
   if (isNaN(id)) {
     res.status(400).json({ error: "Invalid feedback ID" });
     return;
@@ -326,7 +326,7 @@ router.post("/feedback/:id/respond", async (req: Request, res: Response) => {
     return;
   }
 
-  const id = parseInt(req.params.id);
+  const id = parseInt(req.params.id as string);
   if (isNaN(id)) {
     res.status(400).json({ error: "Invalid feedback ID" });
     return;
@@ -434,7 +434,7 @@ router.patch("/feedback/:id/status", async (req: Request, res: Response) => {
     return;
   }
 
-  const id = parseInt(req.params.id);
+  const id = parseInt(req.params.id as string);
   if (isNaN(id)) {
     res.status(400).json({ error: "Invalid feedback ID" });
     return;

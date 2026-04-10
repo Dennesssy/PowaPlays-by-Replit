@@ -1,22 +1,19 @@
 import { Router, type IRouter, type Request, type Response } from "express";
 import { db, projectsTable, usersTable } from "@workspace/db";
 import { eq, and, sql, or, ilike } from "drizzle-orm";
-import {
-  ListProjectsQueryParams,
-  GetProjectParams,
-  UpdateMyProjectBody,
-  UpdateMyProjectParams,
-} from "@workspace/api-zod";
 
 const router: IRouter = Router();
 
+function isInternal(req: Request): boolean {
+  return req.isAuthenticated() && (req.user.role === "internal" || req.user.role === "admin");
+}
+
 router.get("/projects", async (req: Request, res: Response) => {
-  const parsed = ListProjectsQueryParams.safeParse(req.query);
-  const tag = parsed.success ? parsed.data.tag : undefined;
-  const style = parsed.success ? parsed.data.style : undefined;
-  const search = parsed.success ? parsed.data.search : undefined;
-  const page = parsed.success && parsed.data.page ? parsed.data.page : 1;
-  const limit = parsed.success && parsed.data.limit ? parsed.data.limit : 50;
+  const tag = req.query.tag as string | undefined;
+  const style = req.query.style as string | undefined;
+  const search = req.query.search as string | undefined;
+  const page = Math.max(1, parseInt(req.query.page as string) || 1);
+  const limit = Math.min(100, Math.max(1, parseInt(req.query.limit as string) || 50));
   const offset = (page - 1) * limit;
 
   try {
@@ -34,12 +31,21 @@ router.get("/projects", async (req: Request, res: Response) => {
       );
     }
 
+    if (tag) {
+      conditions.push(sql`${projectsTable.tags}::jsonb @> ${JSON.stringify([tag])}::jsonb`);
+    }
+
+    if (style) {
+      conditions.push(ilike(projectsTable.style, style));
+    }
+
     const projects = await db
       .select({
         id: projectsTable.id,
         title: projectsTable.title,
         slug: projectsTable.slug,
         url: projectsTable.url,
+        demoUrl: projectsTable.demoUrl,
         description: projectsTable.description,
         tags: projectsTable.tags,
         style: projectsTable.style,
@@ -47,40 +53,27 @@ router.get("/projects", async (req: Request, res: Response) => {
         isHidden: projectsTable.isHidden,
         thumbnailUrl: projectsTable.thumbnailUrl,
         previewVideoUrl: projectsTable.previewVideoUrl,
+        videoUrl: projectsTable.videoUrl,
         favoriteCount: projectsTable.favoriteCount,
-        ownerUsername: usersTable.username,
-        ownerAvatarUrl: usersTable.profileImageUrl,
+        ownerId: projectsTable.ownerId,
+        ownerUsername: projectsTable.ownerUsername,
+        ownerDisplayName: projectsTable.ownerDisplayName,
+        ownerAvatarUrl: projectsTable.ownerAvatarUrl,
         createdAt: projectsTable.createdAt,
       })
       .from(projectsTable)
-      .leftJoin(usersTable, eq(projectsTable.ownerId, usersTable.id))
       .where(and(...conditions))
-      .orderBy(sql`${projectsTable.createdAt} DESC`)
+      .orderBy(sql`${projectsTable.favoriteCount} DESC, ${projectsTable.createdAt} DESC`)
       .limit(limit)
       .offset(offset);
-
-    let filtered = projects;
-    if (tag) {
-      filtered = filtered.filter((p) => {
-        const t = (p.tags as string[]) || [];
-        return t.some((x) => x.toLowerCase() === tag.toLowerCase());
-      });
-    }
-    if (style) {
-      filtered = filtered.filter(
-        (p) => p.style?.toLowerCase() === style.toLowerCase(),
-      );
-    }
 
     const [countResult] = await db
       .select({ count: sql<number>`count(*)::int` })
       .from(projectsTable)
-      .where(
-        and(eq(projectsTable.isPublic, true), eq(projectsTable.isHidden, false)),
-      );
+      .where(and(...conditions));
 
     res.json({
-      projects: filtered.map((p) => ({
+      projects: projects.map((p) => ({
         ...p,
         tags: (p.tags as string[]) || [],
         ownerUsername: p.ownerUsername || "unknown",
@@ -96,8 +89,8 @@ router.get("/projects", async (req: Request, res: Response) => {
 });
 
 router.get("/projects/:id", async (req: Request, res: Response) => {
-  const parsed = GetProjectParams.safeParse(req.params);
-  if (!parsed.success) {
+  const id = parseInt(req.params.id as string);
+  if (isNaN(id)) {
     res.status(400).json({ error: "Invalid project ID" });
     return;
   }
@@ -109,6 +102,8 @@ router.get("/projects/:id", async (req: Request, res: Response) => {
         title: projectsTable.title,
         slug: projectsTable.slug,
         url: projectsTable.url,
+        demoUrl: projectsTable.demoUrl,
+        replitUrl: projectsTable.replitUrl,
         description: projectsTable.description,
         tags: projectsTable.tags,
         style: projectsTable.style,
@@ -116,18 +111,28 @@ router.get("/projects/:id", async (req: Request, res: Response) => {
         isHidden: projectsTable.isHidden,
         thumbnailUrl: projectsTable.thumbnailUrl,
         previewVideoUrl: projectsTable.previewVideoUrl,
+        videoUrl: projectsTable.videoUrl,
         favoriteCount: projectsTable.favoriteCount,
-        ownerUsername: usersTable.username,
-        ownerAvatarUrl: usersTable.profileImageUrl,
+        ownerId: projectsTable.ownerId,
+        ownerUsername: projectsTable.ownerUsername,
+        ownerDisplayName: projectsTable.ownerDisplayName,
+        ownerAvatarUrl: projectsTable.ownerAvatarUrl,
         createdAt: projectsTable.createdAt,
       })
       .from(projectsTable)
-      .leftJoin(usersTable, eq(projectsTable.ownerId, usersTable.id))
-      .where(eq(projectsTable.id, parsed.data.id));
+      .where(eq(projectsTable.id, id));
 
     if (!project) {
       res.status(404).json({ error: "Project not found" });
       return;
+    }
+
+    if (project.isHidden || !project.isPublic) {
+      const isOwner = req.isAuthenticated() && req.user.id === project.ownerId;
+      if (!isOwner && !isInternal(req)) {
+        res.status(404).json({ error: "Project not found" });
+        return;
+      }
     }
 
     res.json({
@@ -156,6 +161,7 @@ router.get("/me/projects", async (req: Request, res: Response) => {
         title: projectsTable.title,
         slug: projectsTable.slug,
         url: projectsTable.url,
+        demoUrl: projectsTable.demoUrl,
         description: projectsTable.description,
         tags: projectsTable.tags,
         style: projectsTable.style,
@@ -164,12 +170,11 @@ router.get("/me/projects", async (req: Request, res: Response) => {
         thumbnailUrl: projectsTable.thumbnailUrl,
         previewVideoUrl: projectsTable.previewVideoUrl,
         favoriteCount: projectsTable.favoriteCount,
-        ownerUsername: usersTable.username,
-        ownerAvatarUrl: usersTable.profileImageUrl,
+        ownerUsername: projectsTable.ownerUsername,
+        ownerAvatarUrl: projectsTable.ownerAvatarUrl,
         createdAt: projectsTable.createdAt,
       })
       .from(projectsTable)
-      .leftJoin(usersTable, eq(projectsTable.ownerId, usersTable.id))
       .where(eq(projectsTable.ownerId, req.user.id))
       .orderBy(sql`${projectsTable.createdAt} DESC`);
 
@@ -195,17 +200,13 @@ router.patch("/me/projects/:id", async (req: Request, res: Response) => {
     return;
   }
 
-  const paramsParsed = UpdateMyProjectParams.safeParse(req.params);
-  if (!paramsParsed.success) {
+  const id = parseInt(req.params.id as string);
+  if (isNaN(id)) {
     res.status(400).json({ error: "Invalid project ID" });
     return;
   }
 
-  const bodyParsed = UpdateMyProjectBody.safeParse(req.body);
-  if (!bodyParsed.success) {
-    res.status(400).json({ error: "Invalid request body" });
-    return;
-  }
+  const { isHidden, description, tags, style } = req.body;
 
   try {
     const [existing] = await db
@@ -213,7 +214,7 @@ router.patch("/me/projects/:id", async (req: Request, res: Response) => {
       .from(projectsTable)
       .where(
         and(
-          eq(projectsTable.id, paramsParsed.data.id),
+          eq(projectsTable.id, id),
           eq(projectsTable.ownerId, req.user.id),
         ),
       );
@@ -224,49 +225,23 @@ router.patch("/me/projects/:id", async (req: Request, res: Response) => {
     }
 
     const updateData: Record<string, unknown> = {};
-    if (bodyParsed.data.isHidden !== undefined)
-      updateData.isHidden = bodyParsed.data.isHidden;
-    if (bodyParsed.data.description !== undefined)
-      updateData.description = bodyParsed.data.description;
-    if (bodyParsed.data.tags !== undefined)
-      updateData.tags = bodyParsed.data.tags;
-    if (bodyParsed.data.style !== undefined)
-      updateData.style = bodyParsed.data.style;
+    if (isHidden !== undefined) updateData.isHidden = isHidden;
+    if (description !== undefined) updateData.description = description;
+    if (tags !== undefined) updateData.tags = tags;
+    if (style !== undefined) updateData.style = style;
 
     const [updated] = await db
       .update(projectsTable)
       .set(updateData)
-      .where(eq(projectsTable.id, paramsParsed.data.id))
+      .where(eq(projectsTable.id, id))
       .returning();
 
-    const [withUser] = await db
-      .select({
-        id: projectsTable.id,
-        title: projectsTable.title,
-        slug: projectsTable.slug,
-        url: projectsTable.url,
-        description: projectsTable.description,
-        tags: projectsTable.tags,
-        style: projectsTable.style,
-        isPublic: projectsTable.isPublic,
-        isHidden: projectsTable.isHidden,
-        thumbnailUrl: projectsTable.thumbnailUrl,
-        previewVideoUrl: projectsTable.previewVideoUrl,
-        favoriteCount: projectsTable.favoriteCount,
-        ownerUsername: usersTable.username,
-        ownerAvatarUrl: usersTable.profileImageUrl,
-        createdAt: projectsTable.createdAt,
-      })
-      .from(projectsTable)
-      .leftJoin(usersTable, eq(projectsTable.ownerId, usersTable.id))
-      .where(eq(projectsTable.id, updated.id));
-
     res.json({
-      ...withUser,
-      tags: (withUser.tags as string[]) || [],
-      ownerUsername: withUser.ownerUsername || "unknown",
-      ownerAvatarUrl: withUser.ownerAvatarUrl || null,
-      createdAt: withUser.createdAt.toISOString(),
+      ...updated,
+      tags: (updated.tags as string[]) || [],
+      ownerUsername: updated.ownerUsername || "unknown",
+      ownerAvatarUrl: updated.ownerAvatarUrl || null,
+      createdAt: updated.createdAt.toISOString(),
     });
   } catch (err) {
     req.log.error({ err }, "Error updating project");

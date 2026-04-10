@@ -1,5 +1,7 @@
 import app from "./app";
 import { logger } from "./lib/logger";
+import { startSyncScheduler } from "./lib/buildathonSync";
+import { startMetricsFlush } from "./middlewares/apm";
 
 const rawPort = process.env["PORT"];
 
@@ -22,4 +24,7 @@ app.listen(port, (err) => {
   }
 
   logger.info({ port }, "Server listening");
+
+  startSyncScheduler();
+  startMetricsFlush(60_000);
 });

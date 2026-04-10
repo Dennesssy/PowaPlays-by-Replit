@@ -1,7 +1,6 @@
 import { Router, type IRouter, type Request, type Response } from "express";
 import { db, favoritesTable, projectsTable, usersTable } from "@workspace/db";
 import { eq, and, sql } from "drizzle-orm";
-import { AddFavoriteParams, RemoveFavoriteParams } from "@workspace/api-zod";
 
 const router: IRouter = Router();
 
@@ -11,8 +10,8 @@ router.post("/favorites/:projectId", async (req: Request, res: Response) => {
     return;
   }
 
-  const parsed = AddFavoriteParams.safeParse(req.params);
-  if (!parsed.success) {
+  const projectId = parseInt(req.params.projectId as string);
+  if (isNaN(projectId)) {
     res.status(400).json({ error: "Invalid project ID" });
     return;
   }
@@ -24,19 +23,19 @@ router.post("/favorites/:projectId", async (req: Request, res: Response) => {
       .where(
         and(
           eq(favoritesTable.userId, req.user.id),
-          eq(favoritesTable.projectId, parsed.data.projectId),
+          eq(favoritesTable.projectId, projectId),
         ),
       );
 
     if (!existing) {
       await db.insert(favoritesTable).values({
         userId: req.user.id,
-        projectId: parsed.data.projectId,
+        projectId,
       });
       await db
         .update(projectsTable)
         .set({ favoriteCount: sql`${projectsTable.favoriteCount} + 1` })
-        .where(eq(projectsTable.id, parsed.data.projectId));
+        .where(eq(projectsTable.id, projectId));
     }
 
     res.json({ success: true });
@@ -54,8 +53,8 @@ router.delete(
       return;
     }
 
-    const parsed = RemoveFavoriteParams.safeParse(req.params);
-    if (!parsed.success) {
+    const projectId = parseInt(req.params.projectId as string);
+    if (isNaN(projectId)) {
       res.status(400).json({ error: "Invalid project ID" });
       return;
     }
@@ -67,7 +66,7 @@ router.delete(
         .where(
           and(
             eq(favoritesTable.userId, req.user.id),
-            eq(favoritesTable.projectId, parsed.data.projectId),
+            eq(favoritesTable.projectId, projectId),
           ),
         );
 
@@ -77,7 +76,7 @@ router.delete(
           .where(
             and(
               eq(favoritesTable.userId, req.user.id),
-              eq(favoritesTable.projectId, parsed.data.projectId),
+              eq(favoritesTable.projectId, projectId),
             ),
           );
         await db
@@ -85,7 +84,7 @@ router.delete(
           .set({
             favoriteCount: sql`GREATEST(${projectsTable.favoriteCount} - 1, 0)`,
           })
-          .where(eq(projectsTable.id, parsed.data.projectId));
+          .where(eq(projectsTable.id, projectId));
       }
 
       res.json({ success: true });
