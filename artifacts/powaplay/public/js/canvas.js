@@ -433,12 +433,13 @@ window.Canvas = {
     let touchId = null;
     this.el.addEventListener('touchstart', (e) => {
       if (e.touches.length === 1) {
+        e.preventDefault();
         touchId = e.touches[0].identifier;
         this.lastX = e.touches[0].clientX;
         this.lastY = e.touches[0].clientY;
         pointerDown(e.touches[0].clientX, e.touches[0].clientY);
       }
-    }, { passive: true });
+    }, { passive: false });
     this.el.addEventListener('touchmove', (e) => {
       if (e.touches.length === 1 && e.touches[0].identifier === touchId) {
         e.preventDefault();

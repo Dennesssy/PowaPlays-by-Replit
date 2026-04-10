@@ -224,11 +224,7 @@ window.App = {
 
     this._syncFilterPanelState();
 
-    const startPage = Math.max(1, parseInt(urlParams.get('page')) || 1);
-    this._discoverPage = startPage;
     this._discoverAllLoaded = false;
-    this._discoverNorthPage = startPage - 1;
-    this._discoverNorthAllLoaded = startPage <= 1;
     this._discoverNorthLoading = false;
     try {
       const baseParams = {};
@@ -237,9 +233,25 @@ window.App = {
       if (this.currentSearch) baseParams.search = this.currentSearch;
       if (this.currentSort && this.currentSort !== 'popular') baseParams.sort = this.currentSort;
 
+      const explicitPage = parseInt(urlParams.get('page')) || 0;
+
+      let startPage;
+      if (explicitPage >= 1) {
+        startPage = explicitPage;
+      } else {
+        const probe = await API.getProjects({ ...baseParams, page: 1, limit: 1 });
+        const total = probe.total || 0;
+        const totalPages = Math.ceil(total / 500);
+        startPage = totalPages > 1 ? 2 : 1;
+      }
+
       const data = await API.getProjects({ ...baseParams, page: startPage, limit: 500 });
       this._discoverTotal = data.total || 0;
       this._updateResultsCount(this._discoverTotal);
+
+      this._discoverPage = startPage;
+      this._discoverNorthPage = startPage - 1;
+      this._discoverNorthAllLoaded = startPage <= 1;
 
       const projects = data.projects || [];
       Canvas.setProjects(projects);
@@ -677,21 +689,26 @@ window.App = {
 
     this._syncFilterPanelState();
 
-    const params = { page: 1, limit: 500 };
-    if (this.currentTag) params.tag = this.currentTag;
-    if (this.currentStyle) params.style = this.currentStyle;
-    if (this.currentSearch) params.search = this.currentSearch;
-    if (this.currentSort && this.currentSort !== 'popular') params.sort = this.currentSort;
+    const baseParams = { limit: 500 };
+    if (this.currentTag) baseParams.tag = this.currentTag;
+    if (this.currentStyle) baseParams.style = this.currentStyle;
+    if (this.currentSearch) baseParams.search = this.currentSearch;
+    if (this.currentSort && this.currentSort !== 'popular') baseParams.sort = this.currentSort;
 
     try {
-      const data = await API.getProjects(params);
+      const probe = await API.getProjects({ ...baseParams, page: 1, limit: 1 });
+      const total = probe.total || 0;
+      const totalPages = Math.ceil(total / 500);
+      const startPage = totalPages > 1 ? 2 : 1;
+
+      const data = await API.getProjects({ ...baseParams, page: startPage, limit: 500 });
       Canvas.setProjects(data.projects || []);
       this._discoverTotal = data.total || 0;
-      this._discoverPage = 1;
-      this._discoverNorthPage = 0;
-      this._discoverNorthAllLoaded = true;
+      this._discoverPage = startPage;
+      this._discoverNorthPage = startPage - 1;
+      this._discoverNorthAllLoaded = startPage <= 1;
       this._updateResultsCount(this._discoverTotal);
-      this._discoverAllLoaded = (data.projects || []).length >= this._discoverTotal;
+      this._discoverAllLoaded = (startPage * 500) >= this._discoverTotal;
     } catch (err) {
       console.error('Failed to filter projects:', err);
     }
@@ -736,32 +753,23 @@ window.App = {
 
     const createdDate = project.createdAt ? new Date(project.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '';
 
+    const timeAgo = project.createdAt ? this._timeAgo(new Date(project.createdAt)) : '';
+
     meta.innerHTML = `
       <h2 class="overlay-title">${safeTitle}</h2>
-      <a class="overlay-owner" href="/u/${safeOwner}" data-link>
-        ${project.ownerAvatarUrl ? `<img src="${escapeHtml(project.ownerAvatarUrl)}" alt="" class="overlay-avatar">` : `<div class="overlay-avatar-placeholder">${(safeDisplayName[0] || 'U').toUpperCase()}</div>`}
-        <span>${safeDisplayName}</span>
-      </a>
-      ${createdDate ? `<div class="overlay-date">${createdDate}</div>` : ''}
+      <button class="btn btn-primary overlay-visit-btn" style="border-radius:999px;padding:10px 28px;font-size:15px;font-weight:700;margin-bottom:16px;">Visit</button>
+      <div class="overlay-fav-count">${project.favoriteCount || 0} favorites</div>
+      ${timeAgo ? `<div class="overlay-date">${timeAgo}</div>` : ''}
       ${descParagraphs ? `<div class="overlay-desc">${descParagraphs}</div>` : ''}
       <div class="overlay-tags">${tags}</div>
-      ${safeLiveUrl ? `<div class="overlay-url"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg><span>${safeLiveUrl.replace(/^https?:\/\//, '').slice(0, 40)}</span></div>` : ''}
       <div class="overlay-actions">
-        <button class="btn btn-primary overlay-visit-btn">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
-          Visit App
-        </button>
         <button class="btn btn-ghost overlay-fav-btn" data-id="${project.id}">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
-          ${project.favoriteCount || 0} Favorites
+          Favorite
         </button>
-        ${project.replitUrl ? `<button class="btn btn-ghost overlay-replit-btn">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
-          View on Replit
-        </button>` : ''}
         <button class="btn btn-ghost overlay-feedback-btn">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-          Send Feedback
+          Feedback
         </button>
         <button class="btn btn-ghost overlay-share-btn">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
@@ -771,8 +779,6 @@ window.App = {
     `;
 
     meta.querySelector('.overlay-visit-btn').addEventListener('click', () => window.open(liveUrl, '_blank'));
-    const replitBtn = meta.querySelector('.overlay-replit-btn');
-    if (replitBtn) replitBtn.addEventListener('click', () => window.open(project.replitUrl, '_blank'));
     meta.querySelector('.overlay-feedback-btn').addEventListener('click', () => Feedback.showSubmitForm(project.id, project.title || ''));
     meta.querySelector('.overlay-share-btn').addEventListener('click', () => {
       navigator.clipboard.writeText(location.origin + '/u/' + (project.ownerUsername || ''));
@@ -847,6 +853,23 @@ window.App = {
         }
       });
     });
+  },
+
+  _timeAgo(date) {
+    const seconds = Math.floor((Date.now() - date.getTime()) / 1000);
+    const intervals = [
+      { label: 'y', seconds: 31536000 },
+      { label: 'mo', seconds: 2592000 },
+      { label: 'w', seconds: 604800 },
+      { label: 'd', seconds: 86400 },
+      { label: 'h', seconds: 3600 },
+      { label: 'm', seconds: 60 },
+    ];
+    for (const i of intervals) {
+      const count = Math.floor(seconds / i.seconds);
+      if (count >= 1) return count + i.label + ' ago';
+    }
+    return 'just now';
   },
 
   _setupMobile() {
