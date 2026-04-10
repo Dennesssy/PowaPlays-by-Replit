@@ -115,7 +115,6 @@ window.App = {
     listContainer.innerHTML = '';
 
     let items = [];
-    const isStyleTab = tab === 'styles';
 
     if (tab === 'types') {
       items = this._tagData.slice(0, 20).map(t => ({ ...t, isTag: true }));
@@ -216,7 +215,7 @@ window.App = {
     this.currentSearch = urlParams.get('q') || '';
 
     const searchInput = document.getElementById('search-input');
-    if (searchInput && this.currentSearch) searchInput.value = this.currentSearch;
+    if (searchInput) searchInput.value = this.currentSearch || '';
 
     this._syncFilterPanelState();
 
