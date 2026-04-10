@@ -357,13 +357,17 @@ True omnidirectional 2D draggable canvas with radial tile layout. Completely ind
 
 **Architecture:**
 
-- **Device detection module:** Detects touch support, DPR, pointer type, WebGPU availability. Tunes friction (0.95 touch vs 0.92 mouse) and tile sizes.
+- **Device detection module:** Detects touch support, DPR, pointer type, WebGPU availability. Tunes friction (0.95 touch vs 0.92 mouse) and tile sizes. Pointer listener registered once (not per-detect).
 - **Tile sizes:** Desktop: 220×187px. Mobile: 110×127px. Hero spans 2 columns.
-- **Radial layout:** Tiles sorted by distance from hero center (`Math.hypot(col-hcx, (row-hcy)*aspect)`). Hero placed at `floor((cols-2)/2), floor(rows/2)`. Grid extends beyond viewport in all directions.
-- **GPU hints:** `will-change: transform`, `contain: layout style paint`, `content-visibility: auto` on tiles.
+- **Adaptive grid sizing:** `COLS = max(visibleCols*3, ceil(sqrt(n * aspectRatio)))`, capped at 80. With 1390 projects, desktop gets ~50 columns × ~28 rows — content extends many viewport-widths in every direction.
+- **Radial layout:** Tiles sorted by distance from hero center (`Math.hypot(col-hcx, (row-hcy)*aspect)`). Hero placed at `floor((cols-2)/2), floor(rows/2)`.
+- **Virtual rendering:** Only tiles within viewport + buffer are mounted. Buffer: 35% of viewport on desktop, 50% on mobile. Tiles mount/unmount as user pans.
+- **Batched mounting:** First 12 tiles mount synchronously, remainder deferred via `requestAnimationFrame` in batches of 8 with generation checks to prevent stale mounts.
+- **IndexedDB caching:** Projects cached in `powaplay-cache` IndexedDB with 5-minute TTL. On load, cached data renders instantly while fresh data fetches in background.
+- **GPU hints:** `will-change: transform`, `contain: layout style paint`, `content-visibility: auto` on tiles. Images use `loading="lazy" decoding="async"`.
 - **Centering:** `_centerOnHero()` is the canonical method — computes hero position and sets offsets to center it in the viewport.
-- **Soft clamping:** X and Y panning clamped with `pad = max(vw*0.3, 120)` so grid can be dragged omnidirectionally but can't go fully off-screen.
-- **All-at-once loading:** `limit=2000` fetches all projects in a single request. No pagination/infinite scroll. `MAX_LIMIT` in `projects.ts` = 2000.
+- **Soft clamping:** X and Y panning clamped with `pad = max(vw*0.15, 60)` so grid can be dragged omnidirectionally but can't go fully off-screen.
+- **All-at-once loading:** `limit=2000` fetches all projects in a single request. `MAX_LIMIT` in `projects.ts` = 2000.
 
 ---
 

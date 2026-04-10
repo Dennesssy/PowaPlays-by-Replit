@@ -265,14 +265,24 @@ window.App = {
 
     this._discoverAllLoaded = false;
     this._discoverNorthLoading = false;
+
+    const hasFilters = this.currentTag || this.currentStyle || this.currentSearch ||
+      (this.currentSort && this.currentSort !== 'popular');
+
+    if (!hasFilters) {
+      const cachedCount = await Canvas.loadCachedProjects();
+      if (cachedCount > 0) {
+        this._discoverTotal = cachedCount;
+        this._updateResultsCount(cachedCount);
+      }
+    }
+
     try {
       const baseParams = {};
       if (this.currentTag) baseParams.tag = this.currentTag;
       if (this.currentStyle) baseParams.style = this.currentStyle;
       if (this.currentSearch) baseParams.search = this.currentSearch;
       if (this.currentSort && this.currentSort !== 'popular') baseParams.sort = this.currentSort;
-
-      const explicitPage = parseInt(urlParams.get('page')) || 1;
 
       const data = await API.getProjects({ ...baseParams, page: 1, limit: 2000 });
       this._discoverTotal = data.total || 0;

@@ -30,6 +30,8 @@ window.Canvas = {
     pointerType: 'mouse',
   },
 
+  _pointerListenerBound: false,
+
   _detectDevice() {
     const vw = window.innerWidth;
     this.device.isMobile = vw <= 768;
@@ -38,10 +40,11 @@ window.Canvas = {
     this.device.hasWebGPU = !!navigator.gpu;
     this.device.pointerType = this.device.isTouch ? 'touch' : 'mouse';
 
-    if (window.PointerEvent) {
+    if (window.PointerEvent && !this._pointerListenerBound) {
+      this._pointerListenerBound = true;
       window.addEventListener('pointerdown', (e) => {
         this.device.pointerType = e.pointerType;
-      }, { once: true, passive: true });
+      }, { passive: true });
     }
   },
 
@@ -53,15 +56,19 @@ window.Canvas = {
       this.GAP = 6;
       this.TILE_W = 110;
       this.TILE_H = Math.round(this.TILE_W * 1.15);
-      const visibleCols = Math.floor(vw / (this.TILE_W + this.GAP));
-      this.COLS = visibleCols + 2;
     } else {
       this.GAP = 8;
       this.TILE_W = 220;
       this.TILE_H = Math.round(this.TILE_W * 0.85);
-      const visibleCols = Math.floor(vw / (this.TILE_W + this.GAP));
-      this.COLS = visibleCols + 3;
     }
+
+    const cellW = this.TILE_W + this.GAP;
+    const vh = Math.max(this.el ? this.el.clientHeight : window.innerHeight, 1);
+    const visibleCols = Math.max(Math.floor(vw / cellW), 1);
+    const n = this.filtered.length || 1;
+    const aspectRatio = Math.max(0.5, Math.min(vw / vh, 3));
+    const targetCols = Math.max(visibleCols * 3, Math.ceil(Math.sqrt(n * aspectRatio)));
+    this.COLS = Math.min(Math.max(targetCols, visibleCols + 4), 80);
   },
 
   init(viewportEl, containerEl) {
@@ -98,7 +105,75 @@ window.Canvas = {
   setProjects(projects) {
     this.projects = projects;
     this.filtered = projects;
+    this._cacheProjects(projects);
     this.render();
+  },
+
+  async loadCachedProjects() {
+    try {
+      const cached = await this._getCachedProjects();
+      if (cached && cached.length > 0) {
+        this.projects = cached;
+        this.filtered = cached;
+        this.render();
+        return cached.length;
+      }
+    } catch (e) {}
+    return 0;
+  },
+
+  _openDB() {
+    return new Promise((resolve, reject) => {
+      const req = indexedDB.open('powaplay-cache', 1);
+      req.onupgradeneeded = () => {
+        const db = req.result;
+        if (!db.objectStoreNames.contains('projects')) {
+          db.createObjectStore('projects', { keyPath: 'id' });
+        }
+        if (!db.objectStoreNames.contains('meta')) {
+          db.createObjectStore('meta', { keyPath: 'key' });
+        }
+      };
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => reject(req.error);
+    });
+  },
+
+  async _cacheProjects(projects) {
+    try {
+      const db = await this._openDB();
+      const tx = db.transaction(['projects', 'meta'], 'readwrite');
+      const store = tx.objectStore('projects');
+      const metaStore = tx.objectStore('meta');
+      store.clear();
+      for (const p of projects) {
+        store.put(p);
+      }
+      metaStore.put({ key: 'lastCached', value: Date.now(), count: projects.length });
+      await new Promise((res, rej) => { tx.oncomplete = res; tx.onerror = rej; });
+      db.close();
+    } catch (e) {}
+  },
+
+  async _getCachedProjects() {
+    try {
+      const db = await this._openDB();
+      const tx = db.transaction(['projects', 'meta'], 'readonly');
+      const metaStore = tx.objectStore('meta');
+      const metaReq = metaStore.get('lastCached');
+      const meta = await new Promise((res) => { metaReq.onsuccess = () => res(metaReq.result); metaReq.onerror = () => res(null); });
+      if (!meta || (Date.now() - meta.value) > 5 * 60 * 1000) {
+        db.close();
+        return null;
+      }
+      const store = tx.objectStore('projects');
+      const allReq = store.getAll();
+      const result = await new Promise((res, rej) => { allReq.onsuccess = () => res(allReq.result); allReq.onerror = () => rej(allReq.error); });
+      db.close();
+      return result;
+    } catch (e) {
+      return null;
+    }
   },
 
   filter(tag, style, search) {
@@ -127,6 +202,7 @@ window.Canvas = {
     this.container.innerHTML = '';
     this._heroEl = null;
     this.tiles = [];
+    this._renderGeneration++;
     this._updateTileSize();
 
     const cols = this.COLS;
@@ -183,6 +259,7 @@ window.Canvas = {
 
     this._centerOnHero(false);
     this._updateVirtualTiles();
+    this._scheduleIdleRender();
   },
 
   _centerOnHero(animate) {
@@ -214,8 +291,8 @@ window.Canvas = {
     const vw = this.el.clientWidth;
     const vh = this.el.clientHeight;
     const buffer = this.device.isMobile
-      ? Math.max(vw, vh) * 1.5
-      : Math.max(vw, vh);
+      ? Math.max(vw, vh) * 0.5
+      : Math.max(vw, vh) * 0.35;
 
     return {
       left: -this.x - buffer,
@@ -266,13 +343,50 @@ window.Canvas = {
       }
     }
 
-    for (const idx of toMount) {
+    const mountBatch = toMount.slice(0, 12);
+    const mountDeferred = toMount.slice(12);
+
+    for (const idx of mountBatch) {
       const t = this.tiles[idx];
       const tile = this._createTile(t.project, t.x, t.y, t.index);
       this.container.appendChild(tile);
       t.el = tile;
       this._mountedTiles.set(idx, tile);
     }
+
+    if (mountDeferred.length > 0) {
+      this._deferMount(mountDeferred);
+    }
+  },
+
+  _deferMount(indices) {
+    if (indices.length === 0) return;
+    const batch = indices.slice(0, 8);
+    const rest = indices.slice(8);
+    const gen = this._renderGeneration;
+
+    requestAnimationFrame(() => {
+      if (gen !== this._renderGeneration) return;
+      const bounds = this._getVisibleBounds();
+      for (const idx of batch) {
+        const t = this.tiles[idx];
+        if (!t || t.el || this._mountedTiles.has(idx)) continue;
+        const inView = t.x + this.TILE_W > bounds.left && t.x < bounds.right &&
+                       t.y + this.TILE_H > bounds.top && t.y < bounds.bottom;
+        if (!inView) continue;
+        const tile = this._createTile(t.project, t.x, t.y, t.index);
+        this.container.appendChild(tile);
+        t.el = tile;
+        this._mountedTiles.set(idx, tile);
+      }
+      if (rest.length > 0) this._deferMount(rest);
+    });
+  },
+
+  _renderGeneration: 0,
+
+  _scheduleIdleRender() {
+    this._renderGeneration++;
   },
 
   _createHeroTile(x, y, heroW) {
@@ -310,7 +424,7 @@ window.Canvas = {
     const placeholderHtml = `<div class="tile-placeholder" style="background: linear-gradient(135deg, hsl(${hue}, 40%, 92%), hsl(${hue + 40}, 50%, 85%))"><span>${initials}</span></div>`;
     let thumbHtml;
     if (project.thumbnailUrl) {
-      thumbHtml = `<img src="${escapeHtml(project.thumbnailUrl)}" alt="" class="tile-thumb" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';">${placeholderHtml.replace('style="', 'style="display:none;')}`;
+      thumbHtml = `<img src="${escapeHtml(project.thumbnailUrl)}" alt="" class="tile-thumb" loading="lazy" decoding="async" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';">${placeholderHtml.replace('style="', 'style="display:none;')}`;
     } else {
       thumbHtml = placeholderHtml;
     }
@@ -464,7 +578,7 @@ window.Canvas = {
     const vw = this.el ? this.el.clientWidth : 0;
     const vh = this.el ? this.el.clientHeight : 0;
     const containerH = parseInt(this.container.style.height) || 0;
-    const pad = Math.max(vw * 0.3, 120);
+    const pad = Math.max(vw * 0.15, 60);
 
     if (containerW > 0 && vw > 0) {
       const minX = vw - containerW - pad;
