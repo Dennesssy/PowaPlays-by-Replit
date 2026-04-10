@@ -13,6 +13,7 @@ version = "1.0.0"
 name = "web"
 paths = [ "/" ]
 localPort = 8080
+externalPort = 80
 
 [services.development]
 run = "echo 'Frontend served by API server on port 8080'"
