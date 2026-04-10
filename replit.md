@@ -365,6 +365,7 @@ The 2D draggable grid. Completely independent from app.js — communicates only 
 
 - **Lines 250–350 — Edge detection:** South edge (`scrolledY > maxY - 600`) triggers `_loadMoreProjects()`. North edge (`scrolledY < 600`) triggers `_loadMoreProjectsNorth()`.
   - **Critical:** `_discoverNorthAllLoaded` prevents duplicate north loads. `_discoverSouthAllLoaded` stops south loading when last page reached.
+  - **Intentional design — page 2 start:** On initial load, a probe request fetches `page=1&limit=1` to get the total count. If more than 1 page exists, the canvas starts rendering from **page 2** (not page 1). This is deliberate — it ensures the user can immediately pan north to see page 1 content (bidirectional loading). If only 1 page exists, it starts at page 1 with north loading disabled. To change this behavior, modify the `startPage` calculation in `_showDiscover()` and `_applyFilters()` in `app.js`.
 
 - **Lines 350–450 — `_loadMoreProjects()` / `_loadMoreProjectsNorth()`:** Fetch the next/previous page. Append tiles to the south, prepend to the north. North prepend shifts all existing grid indices by `newProjects.length` to stay aligned.
 

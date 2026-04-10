@@ -281,6 +281,9 @@ window.App = {
         const probe = await API.getProjects({ ...baseParams, page: 1, limit: 1 });
         const total = probe.total || 0;
         const totalPages = Math.ceil(total / 500);
+        // Intentional design: start at page 2 when >1 page exists so that
+        // panning north immediately loads page 1 (bidirectional infinite scroll).
+        // When only 1 page exists, start at page 1 (north loading disabled).
         startPage = totalPages > 1 ? 2 : 1;
       }
 
@@ -1175,6 +1178,8 @@ window.App = {
       const probe = await API.getProjects({ ...baseParams, page: 1, limit: 1 });
       const total = probe.total || 0;
       const totalPages = Math.ceil(total / 500);
+      // Intentional design: start at page 2 when >1 page exists so that
+      // panning north immediately loads page 1 (bidirectional infinite scroll).
       const startPage = totalPages > 1 ? 2 : 1;
 
       const data = await API.getProjects({ ...baseParams, page: startPage, limit: 500 });
