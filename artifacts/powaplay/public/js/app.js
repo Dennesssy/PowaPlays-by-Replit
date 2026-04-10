@@ -555,7 +555,7 @@ window.App = {
       triggerBtn.classList.toggle('has-filter', !!hasFilters);
       const label = triggerBtn.querySelector('span');
       if (label) {
-        label.textContent = hasFilters ? (this.currentTag || this.currentSearch || 'Filtered') : 'Filter';
+        label.textContent = hasFilters ? (this.currentTag || this.currentStyle || this.currentSearch || 'Filtered') : 'Filter';
       }
     }
 
