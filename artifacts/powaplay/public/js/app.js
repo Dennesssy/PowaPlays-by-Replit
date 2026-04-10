@@ -561,8 +561,11 @@ window.App = {
 
     if (clearBtn) clearBtn.style.display = hasFilters ? '' : 'none';
     if (countEl) {
-      const activeLabel = this.currentTag || this.currentStyle || this.currentSearch || '';
-      countEl.textContent = hasFilters ? `Filtering by: ${activeLabel}` : '';
+      const parts = [];
+      if (this.currentTag) parts.push(this.currentTag);
+      if (this.currentStyle) parts.push(this.currentStyle);
+      if (this.currentSearch) parts.push(`"${this.currentSearch}"`);
+      countEl.textContent = hasFilters ? `Filtering by: ${parts.join(', ')}` : '';
     }
 
     document.querySelectorAll('.fp-chip').forEach((c) => {
@@ -734,7 +737,6 @@ window.App = {
         if (overlay.style.display !== 'none') close();
         const fbOverlay = document.getElementById('feedback-submit-overlay');
         if (fbOverlay.style.display !== 'none') Feedback.hideSubmitForm();
-        if (this._mobileFilterOpen) this._closeMobileFilter();
       }
     });
   },
