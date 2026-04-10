@@ -115,16 +115,16 @@ window.App = {
     listContainer.innerHTML = '';
 
     let items = [];
+    const isStyleTab = tab === 'styles';
+
     if (tab === 'types') {
-      items = this._tagData.slice(0, 20);
+      items = this._tagData.slice(0, 20).map(t => ({ ...t, isTag: true }));
     } else if (tab === 'styles') {
-      items = this._tagData.filter(t =>
-        ['minimal', 'dark', 'colorful', 'glassmorphism', 'retro', 'modern', 'bold', 'clean', 'gradient', 'neon'].includes(t.value)
-      );
+      const styleNames = ['minimal', 'dark', 'colorful', 'glassmorphism', 'retro', 'modern', 'bold', 'clean', 'gradient', 'neon'];
+      items = this._tagData.filter(t => styleNames.includes(t.value)).map(t => ({ ...t, isStyle: true }));
     } else if (tab === 'platforms') {
-      items = this._tagData.filter(t =>
-        ['mobile app', 'web app', 'desktop', 'pwa', 'chrome extension', 'api', 'cli', 'discord bot', 'slack bot'].includes(t.value)
-      );
+      const platNames = ['mobile app', 'web app', 'desktop', 'pwa', 'chrome extension', 'api', 'cli', 'discord bot', 'slack bot'];
+      items = this._tagData.filter(t => platNames.includes(t.value)).map(t => ({ ...t, isTag: true }));
     }
 
     if (items.length === 0) {
@@ -134,8 +134,13 @@ window.App = {
 
     items.forEach((t) => {
       const row = document.createElement('div');
-      row.className = 'fp-list-item' + (this.currentTag === t.value ? ' active' : '');
-      row.dataset.tag = t.value;
+      const isActive = t.isStyle ? this.currentStyle === t.value : this.currentTag === t.value;
+      row.className = 'fp-list-item' + (isActive ? ' active' : '');
+      if (t.isStyle) {
+        row.dataset.style = t.value;
+      } else {
+        row.dataset.tag = t.value;
+      }
       row.innerHTML = `<span class="fp-list-name">${t.value.charAt(0).toUpperCase() + t.value.slice(1)}</span><span class="fp-list-count">${t.count}</span>`;
       listContainer.appendChild(row);
     });
@@ -492,10 +497,19 @@ window.App = {
       const item = e.target.closest('.fp-list-item');
       if (!item) return;
       const tag = item.dataset.tag;
-      if (this.currentTag === tag) {
-        this.currentTag = null;
-      } else {
-        this.currentTag = tag;
+      const style = item.dataset.style;
+      if (style) {
+        if (this.currentStyle === style) {
+          this.currentStyle = null;
+        } else {
+          this.currentStyle = style;
+        }
+      } else if (tag) {
+        if (this.currentTag === tag) {
+          this.currentTag = null;
+        } else {
+          this.currentTag = tag;
+        }
       }
       this._syncFilterPanelState();
       this._applyFilters();
@@ -518,7 +532,7 @@ window.App = {
       debounce = setTimeout(() => {
         this.currentSearch = searchInput.value.trim();
         this._applyFilters();
-      }, 300);
+      }, 200);
     });
 
     document.addEventListener('keydown', (e) => {
@@ -560,13 +574,15 @@ window.App = {
   },
 
   async _applyFilters() {
-    const urlParams = new URLSearchParams();
-    if (this.currentTag) urlParams.set('tag', this.currentTag);
-    if (this.currentStyle) urlParams.set('style', this.currentStyle);
-    if (this.currentSearch) urlParams.set('q', this.currentSearch);
-    const qs = urlParams.toString();
-    const newUrl = '/' + (qs ? '?' + qs : '');
-    history.replaceState(null, '', newUrl);
+    if (location.pathname === '/' || location.pathname === '') {
+      const urlParams = new URLSearchParams();
+      if (this.currentTag) urlParams.set('tag', this.currentTag);
+      if (this.currentStyle) urlParams.set('style', this.currentStyle);
+      if (this.currentSearch) urlParams.set('q', this.currentSearch);
+      const qs = urlParams.toString();
+      const newUrl = '/' + (qs ? '?' + qs : '');
+      history.replaceState(null, '', newUrl);
+    }
 
     this._syncFilterPanelState();
 
