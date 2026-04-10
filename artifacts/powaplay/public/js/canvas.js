@@ -132,6 +132,10 @@ window.Canvas = {
       this._heroEl.style.top = (currentTop + shiftY) + 'px';
     }
 
+    if (this._heroGridIndex >= 0) {
+      this._heroGridIndex += newProjects.length;
+    }
+
     this.y -= shiftY;
     this._applyTransform();
     this._updateVirtualTiles();
@@ -493,7 +497,7 @@ window.Canvas = {
       }
     }
 
-    if (scrolledY > 0 && scrolledY < 600) {
+    if (scrolledY < 600) {
       if (typeof App !== 'undefined' && App._loadMoreProjectsNorth) {
         App._loadMoreProjectsNorth();
       }

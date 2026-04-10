@@ -224,24 +224,26 @@ window.App = {
 
     this._syncFilterPanelState();
 
-    this._discoverPage = 1;
+    const startPage = Math.max(1, parseInt(urlParams.get('page')) || 1);
+    this._discoverPage = startPage;
     this._discoverAllLoaded = false;
-    this._discoverNorthPage = 0;
-    this._discoverNorthAllLoaded = true;
+    this._discoverNorthPage = startPage - 1;
+    this._discoverNorthAllLoaded = startPage <= 1;
     this._discoverNorthLoading = false;
     try {
       const baseParams = {};
       if (this.currentTag) baseParams.tag = this.currentTag;
       if (this.currentStyle) baseParams.style = this.currentStyle;
       if (this.currentSearch) baseParams.search = this.currentSearch;
+      if (this.currentSort && this.currentSort !== 'popular') baseParams.sort = this.currentSort;
 
-      const data = await API.getProjects({ ...baseParams, page: 1, limit: 500 });
+      const data = await API.getProjects({ ...baseParams, page: startPage, limit: 500 });
       this._discoverTotal = data.total || 0;
       this._updateResultsCount(this._discoverTotal);
 
       const projects = data.projects || [];
       Canvas.setProjects(projects);
-      this._discoverAllLoaded = projects.length >= this._discoverTotal;
+      this._discoverAllLoaded = (startPage * 500) >= this._discoverTotal;
       this._setupInfiniteScroll();
     } catch (err) {
       console.error('Failed to load projects:', err);
@@ -298,6 +300,7 @@ window.App = {
       if (this.currentTag) params.tag = this.currentTag;
       if (this.currentStyle) params.style = this.currentStyle;
       if (this.currentSearch) params.search = this.currentSearch;
+      if (this.currentSort && this.currentSort !== 'popular') params.sort = this.currentSort;
 
       const data = await API.getProjects(params);
       const newProjects = data.projects || [];
