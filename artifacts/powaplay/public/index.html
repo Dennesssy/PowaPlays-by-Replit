@@ -46,6 +46,11 @@
       <a href="/admin" class="nav-link nav-admin" data-link style="display:none">Admin</a>
     </nav>
     <div class="header-right">
+      <button id="filter-trigger-btn" class="filter-trigger-btn" title="Filter & Search">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <span>Filter</span>
+      </button>
+      <span id="results-count" class="results-count"></span>
       <button id="feedback-fab" class="fab-btn" title="Send feedback" onclick="Feedback.showSubmitForm()">?</button>
       <div id="notif-bell" class="notif-bell" style="display:none" onclick="Notifications.toggle()">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
@@ -60,20 +65,7 @@
     </div>
   </header>
 
-  <div id="filter-bar" class="filter-bar">
-    <div class="filter-chips" id="filter-chips">
-      <div class="filter-group" id="filter-group-tags">
-        <span class="filter-label">Category</span>
-      </div>
-    </div>
-    <div class="filter-search">
-      <input type="search" id="search-input" placeholder="Search projects..." autocomplete="off">
-      <span id="results-count" class="results-count"></span>
-      <button id="clear-filters" class="btn btn-ghost btn-sm" style="display:none">Clear</button>
-    </div>
-  </div>
-
-  <main id="app-main" class="with-filter-bar">
+  <main id="app-main">
     <section id="page-discover" class="page active">
       <div id="canvas-viewport" class="canvas-viewport">
         <div id="canvas-container" class="canvas-container"></div>
@@ -228,31 +220,33 @@
     </button>
   </div>
 
-  <div id="mobile-filter-overlay" class="mobile-filter-overlay">
-    <div class="mobile-filter-backdrop" id="mobile-filter-backdrop"></div>
-    <div class="mobile-filter-panel">
-      <div class="mobile-filter-handle"></div>
-      <div class="mobile-filter-search">
-        <input type="search" id="mobile-search-input" placeholder="Minimal, Inter, etc." autocomplete="off">
+  <div id="filter-overlay" class="filter-overlay">
+    <div class="filter-overlay-backdrop" id="filter-overlay-backdrop"></div>
+    <div class="filter-panel">
+      <div class="filter-panel-handle"></div>
+      <div class="filter-panel-search">
+        <input type="search" id="search-input" placeholder="Minimal, Inter, etc." autocomplete="off">
       </div>
-      <div class="mobile-filter-chips" id="mobile-filter-chips"></div>
-      <div class="mobile-filter-tabs">
-        <button class="mobile-tab active" data-mtab="types">
+      <div class="filter-panel-chips" id="filter-panel-chips"></div>
+      <div class="filter-panel-tabs">
+        <button class="filter-tab active" data-ftab="types">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
           Types
         </button>
-        <button class="mobile-tab" data-mtab="styles">
+        <button class="filter-tab" data-ftab="styles">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/></svg>
           Styles
         </button>
-        <button class="mobile-tab" data-mtab="frameworks">
+        <button class="filter-tab" data-ftab="platforms">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
-          Frameworks
+          Platforms
         </button>
       </div>
-      <div class="mobile-filter-list" id="mobile-filter-list"></div>
-      <div class="mobile-filter-done-row">
-        <button id="mobile-filter-done" class="mobile-filter-done-btn">Done</button>
+      <div class="filter-panel-list" id="filter-panel-list"></div>
+      <div class="filter-panel-done-row">
+        <span id="filter-active-count" class="filter-active-count"></span>
+        <button id="filter-clear-btn" class="filter-clear-btn" style="display:none">Clear</button>
+        <button id="filter-done-btn" class="filter-done-btn">Done</button>
       </div>
     </div>
   </div>

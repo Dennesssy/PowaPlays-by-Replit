@@ -42,17 +42,20 @@ window.Canvas = {
     this.container = containerEl;
     this._bindEvents();
     this._updateTileSize();
+    let resizeTimer;
     window.addEventListener('resize', () => {
-      const wasMobile = this._lastMobileState;
-      this._updateTileSize();
-      if (wasMobile !== this._isMobile()) {
-        this.render();
-      } else {
-        this._updateVirtualTiles();
-      }
-      this._lastMobileState = this._isMobile();
+      clearTimeout(resizeTimer);
+      resizeTimer = setTimeout(() => {
+        const oldW = this.TILE_W;
+        const oldCols = this.COLS;
+        this._updateTileSize();
+        if (oldW !== this.TILE_W || oldCols !== this.COLS) {
+          this.render();
+        } else {
+          this._updateVirtualTiles();
+        }
+      }, 100);
     });
-    this._lastMobileState = this._isMobile();
   },
 
   _updateCols() {

@@ -42,7 +42,7 @@ PWA marketplace / decentralized app store. Replit projects appear as a pannable 
 ### Frontend Files
 
 - `public/index.html` — SPA shell with all page sections
-- `public/css/style.css` — Complete dark theme styles
+- `public/css/style.css` — White/glass theme styles
 - `public/js/api.js` — API client wrapper
 - `public/js/router.js` — Client-side SPA router
 - `public/js/auth.js` — Auth state management
@@ -86,7 +86,7 @@ Replit Auth (OIDC PKCE). Username auto-generated from email prefix. Role field i
 
 ### Design
 
-Dark theme. Accent: `#e0ff65`. No emojis. Font: Inter + JetBrains Mono.
+White/glass theme (godly.website inspired). Filter is a floating dark glassmorphism popup (not a persistent bar). Grid fills full viewport. Desktop: centered modal filter. Mobile: bottom sheet filter. Cmd+K keyboard shortcut to open filter. Font: Inter + JetBrains Mono. Accent for mobile pill nav: teal/green (#2ecca4). Search input border: teal accent.
 
 ### Express 5 Notes
 

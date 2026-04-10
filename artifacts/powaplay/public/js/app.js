@@ -86,27 +86,58 @@ window.App = {
       ];
     }
 
-    this._buildDesktopFilterChips();
-    this._setupFilters();
-
-    if (this.currentTag) {
-      const chip = document.querySelector(`.chip[data-value="${CSS.escape(this.currentTag)}"]`);
-      if (chip) chip.classList.add('active');
-    }
+    this._buildFilterPanel();
+    this._setupFilterOverlay();
   },
 
-  _buildDesktopFilterChips() {
-    const group = document.getElementById('filter-group-tags');
-    if (!group) return;
+  _buildFilterPanel() {
+    const chipsContainer = document.getElementById('filter-panel-chips');
+    const listContainer = document.getElementById('filter-panel-list');
+    if (!chipsContainer || !listContainer) return;
 
-    const topTags = this._tagData.slice(0, 14);
-    topTags.forEach((t) => {
+    chipsContainer.innerHTML = '';
+    const topChips = this._tagData.slice(0, 6);
+    topChips.forEach((t) => {
       const btn = document.createElement('button');
-      btn.className = 'chip';
-      btn.dataset.filter = 'tag';
-      btn.dataset.value = t.value;
-      btn.textContent = t.value.charAt(0).toUpperCase() + t.value.slice(1);
-      group.appendChild(btn);
+      btn.className = 'fp-chip';
+      btn.dataset.tag = t.value;
+      btn.innerHTML = `<span class="fp-chip-icon">◉</span> ${t.value.charAt(0).toUpperCase() + t.value.slice(1)}`;
+      if (this.currentTag === t.value) btn.classList.add('active');
+      chipsContainer.appendChild(btn);
+    });
+
+    this._renderFilterList('types');
+  },
+
+  _renderFilterList(tab) {
+    const listContainer = document.getElementById('filter-panel-list');
+    if (!listContainer) return;
+    listContainer.innerHTML = '';
+
+    let items = [];
+    if (tab === 'types') {
+      items = this._tagData.slice(0, 20);
+    } else if (tab === 'styles') {
+      items = this._tagData.filter(t =>
+        ['minimal', 'dark', 'colorful', 'glassmorphism', 'retro', 'modern', 'bold', 'clean', 'gradient', 'neon'].includes(t.value)
+      );
+    } else if (tab === 'platforms') {
+      items = this._tagData.filter(t =>
+        ['mobile app', 'web app', 'desktop', 'pwa', 'chrome extension', 'api', 'cli', 'discord bot', 'slack bot'].includes(t.value)
+      );
+    }
+
+    if (items.length === 0) {
+      listContainer.innerHTML = '<div style="padding:20px 4px;color:rgba(255,255,255,0.4);font-size:14px;">No items in this category yet</div>';
+      return;
+    }
+
+    items.forEach((t) => {
+      const row = document.createElement('div');
+      row.className = 'fp-list-item' + (this.currentTag === t.value ? ' active' : '');
+      row.dataset.tag = t.value;
+      row.innerHTML = `<span class="fp-list-name">${t.value.charAt(0).toUpperCase() + t.value.slice(1)}</span><span class="fp-list-count">${t.count}</span>`;
+      listContainer.appendChild(row);
     });
   },
 
@@ -163,12 +194,6 @@ window.App = {
 
     next.classList.add('active');
 
-    const filterBar = document.getElementById('filter-bar');
-    const appMain = document.getElementById('app-main');
-    const showFilter = id === 'discover';
-    filterBar.style.display = showFilter ? '' : 'none';
-    appMain.classList.toggle('with-filter-bar', showFilter);
-
     this._trackPageView(location.pathname);
   },
 
@@ -181,20 +206,14 @@ window.App = {
     this._showPage('discover');
 
     const urlParams = new URLSearchParams(location.search);
-    if (urlParams.has('tag')) {
-      this.currentTag = urlParams.get('tag');
-      const chip = document.querySelector(`.chip[data-value="${CSS.escape(this.currentTag)}"]`);
-      if (chip) chip.classList.add('active');
-    }
-    if (urlParams.has('style')) {
-      this.currentStyle = urlParams.get('style');
-    }
-    if (urlParams.has('q')) {
-      this.currentSearch = urlParams.get('q');
-      document.getElementById('search-input').value = this.currentSearch;
-    }
+    this.currentTag = urlParams.get('tag') || null;
+    this.currentStyle = urlParams.get('style') || null;
+    this.currentSearch = urlParams.get('q') || '';
 
-    const hasFilters = this.currentTag || this.currentStyle || this.currentSearch;
+    const searchInput = document.getElementById('search-input');
+    if (searchInput && this.currentSearch) searchInput.value = this.currentSearch;
+
+    this._syncFilterPanelState();
 
     this._discoverPage = 1;
     this._discoverAllLoaded = false;
@@ -208,7 +227,6 @@ window.App = {
       Canvas.setProjects(data.projects || []);
       this._discoverTotal = data.total || 0;
       this._updateResultsCount(this._discoverTotal);
-      document.getElementById('clear-filters').style.display = hasFilters ? '' : 'none';
       if ((data.projects || []).length < 50 || (data.projects || []).length >= this._discoverTotal) {
         this._discoverAllLoaded = true;
       }
@@ -233,7 +251,12 @@ window.App = {
     this._discoverLoading = true;
     this._discoverPage++;
     try {
-      const data = await API.getProjects({ page: this._discoverPage, limit: 50 });
+      const params = { page: this._discoverPage, limit: 50 };
+      if (this.currentTag) params.tag = this.currentTag;
+      if (this.currentStyle) params.style = this.currentStyle;
+      if (this.currentSearch) params.search = this.currentSearch;
+
+      const data = await API.getProjects(params);
       const newProjects = data.projects || [];
       if (newProjects.length === 0) {
         this._discoverAllLoaded = true;
@@ -419,61 +442,124 @@ window.App = {
     }
   },
 
-  _setupFilters() {
-    document.querySelectorAll('.chip[data-filter]').forEach((chip) => {
-      chip.addEventListener('click', () => {
-        const filter = chip.dataset.filter;
-        const value = chip.dataset.value;
+  _setupFilterOverlay() {
+    const overlay = document.getElementById('filter-overlay');
+    const backdrop = document.getElementById('filter-overlay-backdrop');
+    const triggerBtn = document.getElementById('filter-trigger-btn');
+    const mobileFilterBtn = document.getElementById('mobile-filter-btn');
+    const doneBtn = document.getElementById('filter-done-btn');
+    const clearBtn = document.getElementById('filter-clear-btn');
+    const searchInput = document.getElementById('search-input');
 
-        if (filter === 'tag') {
-          if (this.currentTag === value) {
-            this.currentTag = null;
-            chip.classList.remove('active');
-          } else {
-            document.querySelectorAll('.chip[data-filter="tag"]').forEach((c) => c.classList.remove('active'));
-            this.currentTag = value;
-            chip.classList.add('active');
-          }
-        } else if (filter === 'style') {
-          if (this.currentStyle === value) {
-            this.currentStyle = null;
-            chip.classList.remove('active');
-          } else {
-            document.querySelectorAll('.chip[data-filter="style"]').forEach((c) => c.classList.remove('active'));
-            this.currentStyle = value;
-            chip.classList.add('active');
-          }
-        }
+    const openFilter = () => {
+      overlay.classList.add('open');
+      this._syncFilterPanelState();
+      setTimeout(() => searchInput.focus(), 100);
+    };
 
-        this._applyFilters();
+    const closeFilter = () => {
+      overlay.classList.remove('open');
+    };
+
+    if (triggerBtn) triggerBtn.addEventListener('click', openFilter);
+    if (mobileFilterBtn) mobileFilterBtn.addEventListener('click', openFilter);
+    if (backdrop) backdrop.addEventListener('click', closeFilter);
+    if (doneBtn) doneBtn.addEventListener('click', closeFilter);
+
+    document.querySelectorAll('.filter-tab[data-ftab]').forEach((tab) => {
+      tab.addEventListener('click', () => {
+        document.querySelectorAll('.filter-tab').forEach((t) => t.classList.remove('active'));
+        tab.classList.add('active');
+        this._renderFilterList(tab.dataset.ftab);
+        this._syncFilterPanelState();
       });
     });
 
-    const searchInput = document.getElementById('search-input');
+    document.getElementById('filter-panel-chips').addEventListener('click', (e) => {
+      const chip = e.target.closest('.fp-chip');
+      if (!chip) return;
+      const tag = chip.dataset.tag;
+      if (this.currentTag === tag) {
+        this.currentTag = null;
+      } else {
+        this.currentTag = tag;
+      }
+      this._syncFilterPanelState();
+      this._applyFilters();
+    });
+
+    document.getElementById('filter-panel-list').addEventListener('click', (e) => {
+      const item = e.target.closest('.fp-list-item');
+      if (!item) return;
+      const tag = item.dataset.tag;
+      if (this.currentTag === tag) {
+        this.currentTag = null;
+      } else {
+        this.currentTag = tag;
+      }
+      this._syncFilterPanelState();
+      this._applyFilters();
+    });
+
+    if (clearBtn) {
+      clearBtn.addEventListener('click', () => {
+        this.currentTag = null;
+        this.currentStyle = null;
+        this.currentSearch = '';
+        searchInput.value = '';
+        this._syncFilterPanelState();
+        this._applyFilters();
+      });
+    }
+
     let debounce;
     searchInput.addEventListener('input', () => {
       clearTimeout(debounce);
       debounce = setTimeout(() => {
         this.currentSearch = searchInput.value.trim();
         this._applyFilters();
-      }, 200);
+      }, 300);
     });
 
-    document.getElementById('clear-filters').addEventListener('click', () => {
-      this.currentTag = null;
-      this.currentStyle = null;
-      this.currentSearch = '';
-      searchInput.value = '';
-      document.querySelectorAll('.chip').forEach((c) => c.classList.remove('active'));
-      this._applyFilters();
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && overlay.classList.contains('open')) {
+        closeFilter();
+      }
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+        e.preventDefault();
+        openFilter();
+      }
+    });
+  },
+
+  _syncFilterPanelState() {
+    const hasFilters = this.currentTag || this.currentStyle || this.currentSearch;
+    const triggerBtn = document.getElementById('filter-trigger-btn');
+    const clearBtn = document.getElementById('filter-clear-btn');
+    const countEl = document.getElementById('filter-active-count');
+
+    if (triggerBtn) {
+      triggerBtn.classList.toggle('has-filter', !!hasFilters);
+      const label = triggerBtn.querySelector('span');
+      if (label) {
+        label.textContent = hasFilters ? (this.currentTag || this.currentSearch || 'Filtered') : 'Filter';
+      }
+    }
+
+    if (clearBtn) clearBtn.style.display = hasFilters ? '' : 'none';
+    if (countEl) {
+      countEl.textContent = hasFilters ? `Filtering by: ${this.currentTag || this.currentSearch || ''}` : '';
+    }
+
+    document.querySelectorAll('.fp-chip').forEach((c) => {
+      c.classList.toggle('active', c.dataset.tag === this.currentTag);
+    });
+    document.querySelectorAll('.fp-list-item').forEach((item) => {
+      item.classList.toggle('active', item.dataset.tag === this.currentTag);
     });
   },
 
   async _applyFilters() {
-    const clearBtn = document.getElementById('clear-filters');
-    const hasFilters = this.currentTag || this.currentStyle || this.currentSearch;
-    clearBtn.style.display = hasFilters ? '' : 'none';
-
     const urlParams = new URLSearchParams();
     if (this.currentTag) urlParams.set('tag', this.currentTag);
     if (this.currentStyle) urlParams.set('style', this.currentStyle);
@@ -482,7 +568,9 @@ window.App = {
     const newUrl = '/' + (qs ? '?' + qs : '');
     history.replaceState(null, '', newUrl);
 
-    const params = { limit: 100 };
+    this._syncFilterPanelState();
+
+    const params = { page: 1, limit: 50 };
     if (this.currentTag) params.tag = this.currentTag;
     if (this.currentStyle) params.style = this.currentStyle;
     if (this.currentSearch) params.search = this.currentSearch;
@@ -490,10 +578,10 @@ window.App = {
     try {
       const data = await API.getProjects(params);
       Canvas.setProjects(data.projects || []);
-      this._updateResultsCount(data.total || data.projects.length);
       this._discoverTotal = data.total || 0;
       this._discoverPage = 1;
-      this._discoverAllLoaded = hasFilters || (data.projects || []).length >= this._discoverTotal;
+      this._updateResultsCount(this._discoverTotal);
+      this._discoverAllLoaded = (data.projects || []).length >= this._discoverTotal;
     } catch (err) {
       console.error('Failed to filter projects:', err);
     }
@@ -652,35 +740,25 @@ window.App = {
     });
   },
 
-  _mobileFilterOpen: false,
-  _mobileActiveTab: 'types',
-
   _setupMobile() {
-    const filterBtn = document.getElementById('mobile-filter-btn');
-    const filterOverlay = document.getElementById('mobile-filter-overlay');
-    const filterBackdrop = document.getElementById('mobile-filter-backdrop');
-    const filterDone = document.getElementById('mobile-filter-done');
     const indexBtn = document.getElementById('mobile-index-btn');
     const feedbackBtn = document.getElementById('mobile-feedback-btn');
     const refreshBtn = document.getElementById('mobile-nav-refresh');
     const loginBtn = document.getElementById('mobile-login-btn');
 
-    if (!filterBtn) return;
+    if (indexBtn) {
+      indexBtn.addEventListener('click', () => {
+        Router.navigate('/');
+        this._updateMobilePill('index');
+      });
+    }
 
-    filterBtn.addEventListener('click', () => this._openMobileFilter());
-
-    filterBackdrop.addEventListener('click', () => this._closeMobileFilter());
-    filterDone.addEventListener('click', () => this._closeMobileFilter());
-
-    indexBtn.addEventListener('click', () => {
-      Router.navigate('/');
-      this._updateMobilePill('index');
-    });
-
-    feedbackBtn.addEventListener('click', () => {
-      Router.navigate('/feedback');
-      this._updateMobilePill('feedback');
-    });
+    if (feedbackBtn) {
+      feedbackBtn.addEventListener('click', () => {
+        Router.navigate('/feedback');
+        this._updateMobilePill('feedback');
+      });
+    }
 
     if (refreshBtn) {
       refreshBtn.addEventListener('click', () => {
@@ -697,26 +775,6 @@ window.App = {
         }
       });
     }
-
-    document.querySelectorAll('.mobile-tab').forEach((tab) => {
-      tab.addEventListener('click', () => {
-        document.querySelectorAll('.mobile-tab').forEach((t) => t.classList.remove('active'));
-        tab.classList.add('active');
-        this._mobileActiveTab = tab.dataset.mtab;
-        this._renderMobileFilterList();
-      });
-    });
-
-    const mobileSearch = document.getElementById('mobile-search-input');
-    let mDebounce;
-    mobileSearch.addEventListener('input', () => {
-      clearTimeout(mDebounce);
-      mDebounce = setTimeout(() => {
-        this.currentSearch = mobileSearch.value.trim();
-        document.getElementById('search-input').value = this.currentSearch;
-        this._applyFilters();
-      }, 300);
-    });
 
     document.querySelectorAll('.mobile-top-pill-btn').forEach((btn) => {
       btn.addEventListener('click', () => {
@@ -737,139 +795,6 @@ window.App = {
     };
     Object.values(pills).forEach((p) => p && p.classList.remove('mobile-pill-active'));
     if (pills[active]) pills[active].classList.add('mobile-pill-active');
-  },
-
-  _openMobileFilter() {
-    const overlay = document.getElementById('mobile-filter-overlay');
-    overlay.classList.add('open');
-    this._mobileFilterOpen = true;
-    this._buildMobileFilterChips();
-    this._renderMobileFilterList();
-  },
-
-  _closeMobileFilter() {
-    const overlay = document.getElementById('mobile-filter-overlay');
-    overlay.classList.remove('open');
-    this._mobileFilterOpen = false;
-  },
-
-  _buildMobileFilterChips() {
-    const container = document.getElementById('mobile-filter-chips');
-
-    const topTags = this._tagData.slice(0, 8);
-    const icons = { ai: '🤖', productivity: '⚡', saas: '☁️', education: '📚', game: '🎮', fintech: '💰', health: '🏥', social: '💬', marketplace: '🏪', community: '👥', automation: '⚙️', travel: '✈️', 'mobile app': '📱', marketing: '📣', 'ai assistant': '🧠', 'agentic ai': '🤖', 'ai agent': '🤖', healthcare: '🏥', sports: '⚽', 'developer tools': '🛠️', fitness: '💪', 'real estate': '🏠' };
-
-    container.innerHTML = topTags.map((t) => {
-      const tag = t.value;
-      const display = tag.charAt(0).toUpperCase() + tag.slice(1);
-      const icon = icons[tag] || '📦';
-      const isActive = this.currentTag === tag ? ' active' : '';
-      return `<button class="mf-chip${isActive}" data-mftag="${escapeHtml(tag)}"><span class="mf-chip-icon">${icon}</span>${escapeHtml(display)}</button>`;
-    }).join('');
-
-    container.querySelectorAll('.mf-chip').forEach((chip) => {
-      chip.addEventListener('click', () => {
-        const tag = chip.dataset.mftag;
-        if (this.currentTag === tag) {
-          this.currentTag = null;
-          chip.classList.remove('active');
-        } else {
-          container.querySelectorAll('.mf-chip').forEach((c) => c.classList.remove('active'));
-          this.currentTag = tag;
-          chip.classList.add('active');
-        }
-        document.querySelectorAll('.chip[data-filter="tag"]').forEach((c) => c.classList.remove('active'));
-        if (this.currentTag) {
-          const desktopChip = document.querySelector(`.chip[data-value="${CSS.escape(this.currentTag)}"]`);
-          if (desktopChip) desktopChip.classList.add('active');
-        }
-        this._applyFilters();
-        this._renderMobileFilterList();
-      });
-    });
-  },
-
-  _renderMobileFilterList() {
-    const list = document.getElementById('mobile-filter-list');
-    const tab = this._mobileActiveTab;
-
-    let items = [];
-
-    if (tab === 'types') {
-      this._tagData.forEach((t) => {
-        items.push({ name: t.value.charAt(0).toUpperCase() + t.value.slice(1), count: t.count, tag: t.value });
-      });
-    } else if (tab === 'styles') {
-      const styleMap = {};
-      Canvas.projects.forEach((p) => {
-        if (p.style) {
-          const s = p.style.toLowerCase();
-          styleMap[s] = (styleMap[s] || 0) + 1;
-        }
-      });
-      Object.entries(styleMap).sort((a, b) => b[1] - a[1]).forEach(([key, count]) => {
-        items.push({ name: key.charAt(0).toUpperCase() + key.slice(1), count, style: key });
-      });
-      if (items.length === 0) {
-        items = [
-          { name: 'Minimal', count: 0, style: 'minimal' },
-          { name: 'Modern', count: 0, style: 'modern' },
-          { name: 'Playful', count: 0, style: 'playful' },
-          { name: 'Corporate', count: 0, style: 'corporate' },
-        ];
-      }
-    } else if (tab === 'frameworks') {
-      const fwTags = ['react', 'vue', 'svelte', 'nextjs', 'express', 'flask', 'django', 'node', 'python', 'typescript', 'javascript', 'html', 'css', 'tailwind'];
-      const tagMap = {};
-      this._tagData.forEach((t) => { tagMap[t.value] = t.count; });
-      fwTags.forEach((fw) => {
-        if (tagMap[fw]) {
-          items.push({ name: fw.charAt(0).toUpperCase() + fw.slice(1), count: tagMap[fw], tag: fw });
-        }
-      });
-    }
-
-    items.sort((a, b) => b.count - a.count);
-
-    list.innerHTML = items.map((item) => {
-      const isActive = (item.tag && this.currentTag === item.tag) || (item.style && this.currentStyle === item.style);
-      return `<div class="mf-list-item${isActive ? ' active' : ''}" data-mf-tag="${item.tag || ''}" data-mf-style="${item.style || ''}">
-        <span class="mf-list-name">${escapeHtml(item.name)}</span>
-        <span class="mf-list-count">${item.count}</span>
-      </div>`;
-    }).join('');
-
-    list.querySelectorAll('.mf-list-item').forEach((row) => {
-      row.addEventListener('click', () => {
-        const tag = row.dataset.mfTag;
-        const style = row.dataset.mfStyle;
-
-        if (tag) {
-          if (this.currentTag === tag) {
-            this.currentTag = null;
-          } else {
-            this.currentTag = tag;
-          }
-          document.querySelectorAll('.chip[data-filter="tag"]').forEach((c) => c.classList.remove('active'));
-          if (this.currentTag) {
-            const desktopChip = document.querySelector(`.chip[data-value="${CSS.escape(this.currentTag)}"]`);
-            if (desktopChip) desktopChip.classList.add('active');
-          }
-        }
-
-        if (style) {
-          if (this.currentStyle === style) {
-            this.currentStyle = null;
-          } else {
-            this.currentStyle = style;
-          }
-        }
-
-        this._applyFilters();
-        this._buildMobileFilterChips();
-        this._renderMobileFilterList();
-      });
-    });
   },
 };
 
