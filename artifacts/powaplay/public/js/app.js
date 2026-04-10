@@ -205,6 +205,9 @@ window.App = {
   _discoverTotal: 0,
   _discoverLoading: false,
   _discoverAllLoaded: false,
+  _discoverNorthPage: 0,
+  _discoverNorthAllLoaded: true,
+  _discoverNorthLoading: false,
 
   async _showDiscover() {
     this._showPage('discover');
@@ -221,8 +224,10 @@ window.App = {
 
     this._discoverPage = 1;
     this._discoverAllLoaded = false;
+    this._discoverNorthPage = 0;
+    this._discoverNorthAllLoaded = true;
     try {
-      const params = { page: 1, limit: 50 };
+      const params = { page: 1, limit: 500 };
       if (this.currentTag) params.tag = this.currentTag;
       if (this.currentStyle) params.style = this.currentStyle;
       if (this.currentSearch) params.search = this.currentSearch;
@@ -231,7 +236,7 @@ window.App = {
       Canvas.setProjects(data.projects || []);
       this._discoverTotal = data.total || 0;
       this._updateResultsCount(this._discoverTotal);
-      if ((data.projects || []).length < 50 || (data.projects || []).length >= this._discoverTotal) {
+      if ((data.projects || []).length < 500 || (data.projects || []).length >= this._discoverTotal) {
         this._discoverAllLoaded = true;
       }
       this._setupInfiniteScroll();
@@ -255,7 +260,7 @@ window.App = {
     this._discoverLoading = true;
     this._discoverPage++;
     try {
-      const params = { page: this._discoverPage, limit: 50 };
+      const params = { page: this._discoverPage, limit: 500 };
       if (this.currentTag) params.tag = this.currentTag;
       if (this.currentStyle) params.style = this.currentStyle;
       if (this.currentSearch) params.search = this.currentSearch;
@@ -275,6 +280,36 @@ window.App = {
       this._discoverPage--;
     }
     this._discoverLoading = false;
+  },
+
+  async _loadMoreProjectsNorth() {
+    if (this._discoverNorthLoading || this._discoverNorthAllLoaded) return;
+    if (this._discoverNorthPage <= 0) {
+      this._discoverNorthAllLoaded = true;
+      return;
+    }
+    this._discoverNorthLoading = true;
+    try {
+      const params = { page: this._discoverNorthPage, limit: 500 };
+      if (this.currentTag) params.tag = this.currentTag;
+      if (this.currentStyle) params.style = this.currentStyle;
+      if (this.currentSearch) params.search = this.currentSearch;
+
+      const data = await API.getProjects(params);
+      const newProjects = data.projects || [];
+      if (newProjects.length === 0) {
+        this._discoverNorthAllLoaded = true;
+      } else {
+        Canvas.prependProjects(newProjects);
+        this._discoverNorthPage--;
+        if (this._discoverNorthPage <= 0) {
+          this._discoverNorthAllLoaded = true;
+        }
+      }
+    } catch (err) {
+      console.error('Failed to load projects northward:', err);
+    }
+    this._discoverNorthLoading = false;
   },
 
   _checkLoadMore() {
@@ -591,7 +626,7 @@ window.App = {
 
     this._syncFilterPanelState();
 
-    const params = { page: 1, limit: 50 };
+    const params = { page: 1, limit: 500 };
     if (this.currentTag) params.tag = this.currentTag;
     if (this.currentStyle) params.style = this.currentStyle;
     if (this.currentSearch) params.search = this.currentSearch;
@@ -601,6 +636,8 @@ window.App = {
       Canvas.setProjects(data.projects || []);
       this._discoverTotal = data.total || 0;
       this._discoverPage = 1;
+      this._discoverNorthPage = 0;
+      this._discoverNorthAllLoaded = true;
       this._updateResultsCount(this._discoverTotal);
       this._discoverAllLoaded = (data.projects || []).length >= this._discoverTotal;
     } catch (err) {

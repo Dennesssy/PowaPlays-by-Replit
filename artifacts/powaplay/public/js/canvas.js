@@ -95,6 +95,41 @@ window.Canvas = {
     this._updateVirtualTiles();
   },
 
+  prependProjects(newProjects) {
+    if (!newProjects || newProjects.length === 0) return;
+    const cols = this.COLS;
+    const newRows = Math.ceil(newProjects.length / cols);
+    const shiftY = newRows * (this.TILE_H + this.GAP);
+
+    this._mountedTiles.forEach((el) => el.remove());
+    this._mountedTiles.clear();
+
+    for (const t of this.tiles) {
+      t.y += shiftY;
+      t.index += newProjects.length;
+      t.el = null;
+    }
+
+    const newTiles = newProjects.map((project, i) => ({
+      x: (i % cols) * (this.TILE_W + this.GAP),
+      y: Math.floor(i / cols) * (this.TILE_H + this.GAP),
+      project,
+      index: i,
+      el: null,
+    }));
+
+    this.tiles = newTiles.concat(this.tiles);
+    this.projects = newProjects.concat(this.projects);
+    this.filtered = newProjects.concat(this.filtered);
+
+    const totalRows = Math.ceil(this.filtered.length / cols);
+    this.container.style.height = (totalRows * (this.TILE_H + this.GAP) - this.GAP) + 'px';
+
+    this.y -= shiftY;
+    this._applyTransform();
+    this._updateVirtualTiles();
+  },
+
   filter(tag, style, search) {
     this.filtered = this.projects.filter((p) => {
       if (tag) {
@@ -372,6 +407,22 @@ window.Canvas = {
   },
 
   _applyTransform() {
+    const containerW = parseInt(this.container.style.width) || 0;
+    const containerLeft = parseInt(this.container.style.left) || 0;
+    const vw = this.el ? this.el.clientWidth : 0;
+
+    if (containerW > 0 && vw > 0) {
+      const minX = vw - containerLeft - containerW;
+      const maxX = -containerLeft;
+      if (minX < maxX) {
+        this.x = Math.max(minX, Math.min(maxX, this.x));
+      } else {
+        this.x = 0;
+      }
+    }
+
+    this.y = Math.min(0, this.y);
+
     this.container.style.transform = `translate3d(${this.x}px, ${this.y}px, 0)`;
     this._scheduleVirtualUpdate();
     this._checkEdge();
@@ -389,9 +440,16 @@ window.Canvas = {
     const containerH = parseInt(this.container.style.height) || 0;
     const viewportH = this.el.clientHeight;
     const scrolledY = -this.y;
+
     if (containerH > 0 && scrolledY + viewportH > containerH - 600) {
       if (typeof App !== 'undefined' && App._loadMoreProjects) {
         App._loadMoreProjects();
+      }
+    }
+
+    if (scrolledY < 600) {
+      if (typeof App !== 'undefined' && App._loadMoreProjectsNorth) {
+        App._loadMoreProjectsNorth();
       }
     }
   },

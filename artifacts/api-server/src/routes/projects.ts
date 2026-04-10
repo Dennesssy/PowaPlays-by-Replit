@@ -13,7 +13,7 @@ router.get("/projects", async (req: Request, res: Response) => {
   const style = req.query.style as string | undefined;
   const search = req.query.search as string | undefined;
   const page = Math.max(1, parseInt(req.query.page as string) || 1);
-  const limit = Math.min(100, Math.max(1, parseInt(req.query.limit as string) || 50));
+  const limit = Math.min(500, Math.max(1, parseInt(req.query.limit as string) || 50));
   const offset = (page - 1) * limit;
 
   try {
