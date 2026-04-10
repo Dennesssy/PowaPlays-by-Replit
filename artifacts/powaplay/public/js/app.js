@@ -237,24 +237,27 @@ window.App = {
       this._discoverTotal = p1data.total || 0;
       this._updateResultsCount(this._discoverTotal);
 
-      if (this._discoverTotal > (p1data.projects || []).length) {
-        const p2data = await API.getProjects({ ...baseParams, page: 2, limit: 500 });
-        const p2projects = p2data.projects || [];
-        if (p2projects.length > 0) {
-          Canvas.setProjects(p2projects);
-          this._discoverPage = 2;
-          this._discoverNorthPage = 1;
+      const totalPages = Math.max(1, Math.ceil(this._discoverTotal / 500));
+      const startPage = totalPages >= 3 ? Math.ceil(totalPages / 2) : 1;
+
+      if (startPage > 1) {
+        const midData = await API.getProjects({ ...baseParams, page: startPage, limit: 500 });
+        const midProjects = midData.projects || [];
+        if (midProjects.length > 0) {
+          Canvas.setProjects(midProjects);
+          this._discoverPage = startPage;
+          this._discoverNorthPage = startPage - 1;
           this._discoverNorthAllLoaded = false;
-          this._discoverAllLoaded = (p2projects.length < 500) || (Canvas.projects.length >= this._discoverTotal);
+          this._discoverAllLoaded = (midProjects.length < 500) || (startPage * 500 >= this._discoverTotal);
         } else {
           Canvas.setProjects(p1data.projects || []);
           this._discoverPage = 1;
-          this._discoverAllLoaded = true;
+          this._discoverAllLoaded = (p1data.projects || []).length >= this._discoverTotal;
         }
       } else {
         Canvas.setProjects(p1data.projects || []);
         this._discoverPage = 1;
-        this._discoverAllLoaded = true;
+        this._discoverAllLoaded = (p1data.projects || []).length >= this._discoverTotal;
       }
       this._setupInfiniteScroll();
     } catch (err) {
