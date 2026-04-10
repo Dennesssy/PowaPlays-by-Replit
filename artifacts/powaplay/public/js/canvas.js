@@ -447,7 +447,7 @@ window.Canvas = {
       }
     }
 
-    if (scrolledY < 600) {
+    if (scrolledY > 0 && scrolledY < 600) {
       if (typeof App !== 'undefined' && App._loadMoreProjectsNorth) {
         App._loadMoreProjectsNorth();
       }
