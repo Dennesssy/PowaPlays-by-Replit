@@ -1,4 +1,5 @@
-const CACHE_NAME = 'powaplay-v8';
+const CACHE_NAME = 'powaplay-v9';
+const SAME_ORIGIN = self.location.origin;
 
 self.addEventListener('install', () => {
   self.skipWaiting();
@@ -14,11 +15,18 @@ self.addEventListener('activate', (e) => {
 });
 
 self.addEventListener('fetch', (e) => {
+  const url = new URL(e.request.url);
+
   if (e.request.url.includes('/api/')) return;
+
+  if (url.origin !== SAME_ORIGIN) {
+    return;
+  }
+
   e.respondWith(
     fetch(e.request)
       .then((response) => {
-        if (response.ok) {
+        if (response.ok && response.type !== 'opaque') {
           const clone = response.clone();
           caches.open(CACHE_NAME).then((cache) => cache.put(e.request, clone));
         }
