@@ -112,7 +112,7 @@ async function ensureSystemUser(): Promise<string> {
   return systemId;
 }
 
-async function upsertProject(project: BuildathonProject, systemUserId: string): Promise<"inserted" | "updated"> {
+function buildProjectValues(project: BuildathonProject, systemUserId: string) {
   const tags = project.tags?.map((t) => t.name) || [];
   const slug = slugify(project.name || project.id);
   const url = project.demoUrl || project.replitProjectUrl || project.websiteUrl || "";
@@ -122,7 +122,7 @@ async function upsertProject(project: BuildathonProject, systemUserId: string): 
     `user-${project.userId}`;
   const ownerUsername = displayName.toLowerCase().replace(/[^a-z0-9]/g, "") || `u${project.userId}`;
 
-  const values = {
+  return {
     externalId: project.id,
     ownerId: systemUserId,
     title: project.name || "Untitled",
@@ -143,35 +143,81 @@ async function upsertProject(project: BuildathonProject, systemUserId: string): 
     isHidden: false,
     syncedAt: new Date(),
   };
+}
 
-  const [existing] = await db
-    .select({ id: projectsTable.id })
-    .from(projectsTable)
-    .where(eq(projectsTable.externalId, project.id));
+async function upsertBatch(
+  projects: BuildathonProject[],
+  systemUserId: string,
+): Promise<{ inserted: number; updated: number; errors: number }> {
+  if (projects.length === 0) return { inserted: 0, updated: 0, errors: 0 };
 
-  await db
-    .insert(projectsTable)
-    .values(values)
-    .onConflictDoUpdate({
-      target: projectsTable.externalId,
-      set: {
-        title: values.title,
-        description: values.description,
-        tags: values.tags,
-        thumbnailUrl: values.thumbnailUrl,
-        videoUrl: values.videoUrl,
-        demoUrl: values.demoUrl,
-        replitUrl: values.replitUrl,
-        favoriteCount: values.favoriteCount,
-        ownerDisplayName: values.ownerDisplayName,
-        ownerAvatarUrl: values.ownerAvatarUrl,
-        ownerUsername: values.ownerUsername,
-        url: values.url,
-        syncedAt: values.syncedAt,
-      },
-    });
+  const values = projects.map((p) => buildProjectValues(p, systemUserId));
 
-  return existing ? "updated" : "inserted";
+  try {
+    const results = await db
+      .insert(projectsTable)
+      .values(values)
+      .onConflictDoUpdate({
+        target: projectsTable.externalId,
+        set: {
+          title: sql`EXCLUDED.title`,
+          description: sql`EXCLUDED.description`,
+          tags: sql`EXCLUDED.tags`,
+          thumbnailUrl: sql`EXCLUDED.thumbnail_url`,
+          videoUrl: sql`EXCLUDED.video_url`,
+          demoUrl: sql`EXCLUDED.demo_url`,
+          replitUrl: sql`EXCLUDED.replit_url`,
+          favoriteCount: sql`EXCLUDED.favorite_count`,
+          ownerDisplayName: sql`EXCLUDED.owner_display_name`,
+          ownerAvatarUrl: sql`EXCLUDED.owner_avatar_url`,
+          ownerUsername: sql`EXCLUDED.owner_username`,
+          url: sql`EXCLUDED.url`,
+          syncedAt: sql`EXCLUDED.synced_at`,
+        },
+      })
+      .returning({ id: projectsTable.id, wasInserted: sql<boolean>`(xmax::text::bigint = 0)` });
+
+    const inserted = results.filter((r) => r.wasInserted).length;
+    return { inserted, updated: results.length - inserted, errors: 0 };
+  } catch (err) {
+    logger.error({ err, batchSize: projects.length }, "Batch upsert failed, falling back to individual upserts");
+    let inserted = 0;
+    let updated = 0;
+    let errors = 0;
+    for (const project of projects) {
+      try {
+        const v = buildProjectValues(project, systemUserId);
+        const [r] = await db
+          .insert(projectsTable)
+          .values(v)
+          .onConflictDoUpdate({
+            target: projectsTable.externalId,
+            set: {
+              title: v.title,
+              description: v.description,
+              tags: v.tags,
+              thumbnailUrl: v.thumbnailUrl,
+              videoUrl: v.videoUrl,
+              demoUrl: v.demoUrl,
+              replitUrl: v.replitUrl,
+              favoriteCount: v.favoriteCount,
+              ownerDisplayName: v.ownerDisplayName,
+              ownerAvatarUrl: v.ownerAvatarUrl,
+              ownerUsername: v.ownerUsername,
+              url: v.url,
+              syncedAt: v.syncedAt,
+            },
+          })
+          .returning({ id: projectsTable.id, wasInserted: sql<boolean>`(xmax::text::bigint = 0)` });
+        if (r.wasInserted) inserted++;
+        else updated++;
+      } catch (rowErr) {
+        errors++;
+        logger.error({ err: rowErr, projectId: project.id }, "Individual upsert failed");
+      }
+    }
+    return { inserted, updated, errors };
+  }
 }
 
 export async function syncBuildathonProjects(): Promise<{ synced: number; total: number; errors: number; runId: number }> {
@@ -219,16 +265,10 @@ export async function syncBuildathonProjects(): Promise<{ synced: number; total:
       batches++;
       fetched += batch.projects.length;
 
-      for (const project of batch.projects) {
-        try {
-          const result = await upsertProject(project, systemUserId);
-          if (result === "inserted") inserted++;
-          else updated++;
-        } catch (err) {
-          errors++;
-          logger.error({ err, projectId: project.id, name: project.name }, "Failed to upsert project");
-        }
-      }
+      const batchResult = await upsertBatch(batch.projects, systemUserId);
+      inserted += batchResult.inserted;
+      updated += batchResult.updated;
+      errors += batchResult.errors;
 
       await db.update(syncRunsTable)
         .set({ recordsFetched: fetched, recordsInserted: inserted, recordsUpdated: updated, recordsErrored: errors, batchesProcessed: batches, remoteTotal: total })

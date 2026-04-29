@@ -469,7 +469,9 @@ window.Canvas = {
       e.stopPropagation();
       if (favBtn.disabled) return;
       if (typeof Auth !== 'undefined' && !Auth.user) {
-        if (typeof App !== 'undefined' && App.showAuthModal) App.showAuthModal();
+        if (typeof App !== 'undefined' && App.showFavAuthModal) {
+          App.showFavAuthModal();
+        }
         return;
       }
       favBtn.disabled = true;

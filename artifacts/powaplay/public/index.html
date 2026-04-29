@@ -45,6 +45,7 @@
     </div>
     <nav class="header-nav">
       <a href="/" class="nav-link active" data-link>Gallery</a>
+      <a href="/portfolio" class="nav-link nav-authed nav-canvas" data-link style="display:none">My Canvas</a>
       <a href="/dashboard" class="nav-link nav-authed" data-link style="display:none">My Projects</a>
       <a href="/admin" class="nav-link nav-admin" data-link style="display:none">Admin</a>
     </nav>
@@ -54,7 +55,7 @@
         <span>Filter</span>
       </button>
       <span id="results-count" class="results-count"></span>
-      <a id="create-replit-link" href="https://replit.com/signup" target="_blank" rel="noopener" class="btn btn-ghost btn-sm nav-visitor" title="Create a Replit Account" style="display:none">Create Account</a>
+      <a id="create-replit-link" href="https://replit.com/refer/hitch45motor" target="_blank" rel="noopener" class="btn btn-ghost btn-sm nav-visitor" title="Sign up and get a bonus credit to build on Replit" style="display:none">Create Account</a>
       <a id="create-new-link" href="https://replit.com/new" target="_blank" rel="noopener" class="btn btn-ghost btn-sm nav-authed-only" title="Create new on Replit" style="display:none">+</a>
       <button id="feedback-fab" class="fab-btn" title="Send feedback" onclick="Feedback.showSubmitForm()">?</button>
       <div id="notif-bell" class="notif-bell" style="display:none" onclick="Notifications.toggle()">
@@ -140,6 +141,12 @@
             <div id="system-dashboard-content"></div>
           </div>
         </div>
+      </div>
+    </section>
+
+    <section id="page-portfolio" class="page">
+      <div id="portfolio-viewport" class="canvas-viewport">
+        <div id="portfolio-container" class="canvas-container"></div>
       </div>
     </section>
 
@@ -263,8 +270,21 @@
       <div class="hero-modal-logo"><span>P</span></div>
       <h2 class="hero-modal-title">Welcome to PowaPlay</h2>
       <p class="hero-modal-sub">Webappstore &mdash; powered by Replit ⚡</p>
-      <p class="hero-modal-body">This appstore is for existing account holders. Log in with your Replit account to browse, favorite, and interact with projects.</p>
+      <p class="hero-modal-body">Log in with your Replit account to browse, favorite, and build your personal canvas.</p>
       <a href="/api/login?returnTo=/" class="btn btn-primary hero-modal-btn">Log In with Replit</a>
+      <a href="https://replit.com/refer/hitch45motor" target="_blank" rel="noopener" class="btn btn-ghost hero-modal-btn-alt">Sign Up &mdash; get a free credit ⚡</a>
+    </div>
+  </div>
+
+  <div id="fav-auth-modal" class="overlay" style="display:none">
+    <div class="overlay-backdrop" id="fav-auth-backdrop"></div>
+    <div class="hero-modal-card">
+      <button class="overlay-close" id="fav-auth-close">&times;</button>
+      <div class="hero-modal-logo" style="background:rgba(229,62,62,0.1);color:#e53e3e"><span>&#9829;</span></div>
+      <h2 class="hero-modal-title">Sign in to Favorite</h2>
+      <p class="hero-modal-body">Save your favorite projects and build a personal canvas of the apps you love.</p>
+      <a href="/api/login?returnTo=/" class="btn btn-primary hero-modal-btn">Log In</a>
+      <a href="https://replit.com/refer/hitch45motor" target="_blank" rel="noopener" class="btn btn-ghost hero-modal-btn-alt">Sign Up &mdash; get a free credit ⚡</a>
     </div>
   </div>
 
@@ -282,6 +302,9 @@
       </button>
       <button id="mobile-index-btn" class="mobile-pill-icon mobile-pill-active" title="Gallery">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+      </button>
+      <button id="mobile-canvas-btn" class="mobile-pill-icon mobile-authed-pill" title="My Canvas" style="display:none">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.22 4.22l2.12 2.12M17.66 17.66l2.12 2.12M4.22 19.78l2.12-2.12M17.66 6.34l2.12-2.12"/></svg>
       </button>
       <button id="mobile-projects-btn" class="mobile-pill-icon mobile-authed-pill" title="My Projects" style="display:none">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>

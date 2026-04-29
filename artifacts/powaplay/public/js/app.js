@@ -26,9 +26,13 @@ window.App = {
     this._setupMobile();
     this._setupHeroModal();
 
+    this._discoverViewport = document.getElementById('canvas-viewport');
+    this._discoverContainer = document.getElementById('canvas-container');
+
     Auth.onChange(() => {
       this._updateNavForAuth();
       if (Router._current === '/dashboard') this._showDashboard();
+      if (Router._current === '/portfolio') this._showPortfolio();
       if (Router._current === '/feedback') Feedback.showInbox();
       if (Router._current === '/admin') Feedback.showAdminOverview();
       Notifications.init();
@@ -36,6 +40,7 @@ window.App = {
     await Auth.init();
 
     this._loadTagsAndBuildFilters();
+    this._setupFavAuthModal();
 
     Router.init();
   },
@@ -62,6 +67,7 @@ window.App = {
     const profileBtn = document.getElementById('mobile-nav-profile');
     const lightningBtn = document.getElementById('mobile-nav-lightning');
     const projectsBtn = document.getElementById('mobile-projects-btn');
+    const canvasBtn = document.getElementById('mobile-canvas-btn');
     const feedbackBtn = document.getElementById('mobile-feedback-btn');
     const loginPill = document.getElementById('mobile-login-pill');
     const adminBtn = document.getElementById('mobile-nav-admin');
@@ -70,6 +76,7 @@ window.App = {
     if (profileBtn) profileBtn.style.display = isLoggedIn ? '' : 'none';
     if (lightningBtn) lightningBtn.style.display = isLoggedIn ? 'none' : '';
     if (projectsBtn) projectsBtn.style.display = isLoggedIn ? '' : 'none';
+    if (canvasBtn) canvasBtn.style.display = isLoggedIn ? '' : 'none';
     if (feedbackBtn) feedbackBtn.style.display = isLoggedIn ? 'none' : '';
     if (loginPill) loginPill.style.display = isLoggedIn ? 'none' : '';
     if (adminBtn) adminBtn.style.display = isAdmin ? '' : 'none';
@@ -215,6 +222,7 @@ window.App = {
 
   _setupRoutes() {
     Router.add('/', () => this._showDiscover());
+    Router.add('/portfolio', () => this._showPortfolio());
     Router.add('/dashboard', () => this._showDashboard());
     Router.add('/feedback', () => this._showFeedback());
     Router.add('/feedback/:id', (params) => this._showFeedbackThread(params.id));
@@ -249,9 +257,16 @@ window.App = {
   _discoverNorthPage: 0,
   _discoverNorthAllLoaded: true,
   _discoverNorthLoading: false,
+  _discoverFetchKey: null,
+  _discoverFetchTime: 0,
+  _DISCOVER_FETCH_TTL: 2 * 60 * 1000,
 
   async _showDiscover() {
     this._showPage('discover');
+
+    if (this._discoverViewport && Canvas.el !== this._discoverViewport) {
+      Canvas.init(this._discoverViewport, this._discoverContainer);
+    }
 
     const urlParams = new URLSearchParams(location.search);
     this.currentTag = urlParams.get('tag') || null;
@@ -277,6 +292,13 @@ window.App = {
       }
     }
 
+    const fetchKey = `${this.currentTag || ''}|${this.currentStyle || ''}|${this.currentSearch || ''}|${this.currentSort || 'popular'}`;
+    const fetchAge = Date.now() - this._discoverFetchTime;
+    if (fetchKey === this._discoverFetchKey && fetchAge < this._DISCOVER_FETCH_TTL && Canvas.projects.length > 0) {
+      this._discoverAllLoaded = true;
+      return;
+    }
+
     try {
       const baseParams = {};
       if (this.currentTag) baseParams.tag = this.currentTag;
@@ -295,8 +317,62 @@ window.App = {
       const projects = data.projects || [];
       Canvas.setProjects(projects);
       this._discoverAllLoaded = true;
+      this._discoverFetchKey = fetchKey;
+      this._discoverFetchTime = Date.now();
     } catch (err) {
       console.error('Failed to load projects:', err);
+    }
+  },
+
+  async _showPortfolio() {
+    if (!Auth.user) {
+      if (!Auth._loading) {
+        Router.navigate('/dashboard');
+      }
+      return;
+    }
+
+    this._showPage('portfolio');
+
+    const portfolioViewport = document.getElementById('portfolio-viewport');
+    const portfolioContainer = document.getElementById('portfolio-container');
+    Canvas.init(portfolioViewport, portfolioContainer);
+
+    portfolioContainer.innerHTML = '<div class="portfolio-loading">Loading your canvas…</div>';
+
+    try {
+      const [myProjectsData, favoritesData] = await Promise.all([
+        API.getMyProjects().catch(() => ({ projects: [] })),
+        API.getMyFavorites().catch(() => ({ projects: [] })),
+      ]);
+
+      const myProjects = (myProjectsData.projects || []).filter(p => !p.isHidden);
+      const favorites = favoritesData.projects || [];
+
+      const seenIds = new Set();
+      const merged = [];
+      for (const p of [...myProjects, ...favorites]) {
+        if (!seenIds.has(p.id)) {
+          seenIds.add(p.id);
+          merged.push(p);
+        }
+      }
+
+      if (merged.length === 0) {
+        portfolioContainer.innerHTML = `
+          <div class="portfolio-empty">
+            <div class="portfolio-empty-icon">P</div>
+            <h2>Your canvas is empty</h2>
+            <p>Import your public Replit projects to get started, or favorite projects from the gallery.</p>
+            <button class="btn btn-primary" onclick="Router.navigate('/dashboard')">Import from Replit &rarr;</button>
+          </div>
+        `;
+        return;
+      }
+
+      Canvas.setProjects(merged);
+    } catch (err) {
+      console.error('Failed to load portfolio:', err);
     }
   },
 
@@ -1147,13 +1223,33 @@ window.App = {
     if (modal) modal.style.display = 'none';
   },
 
+  showFavAuthModal() {
+    const modal = document.getElementById('fav-auth-modal');
+    if (modal) modal.style.display = '';
+  },
+
+  closeFavAuthModal() {
+    const modal = document.getElementById('fav-auth-modal');
+    if (modal) modal.style.display = 'none';
+  },
+
+  _setupFavAuthModal() {
+    const backdrop = document.getElementById('fav-auth-backdrop');
+    const closeBtn = document.getElementById('fav-auth-close');
+    if (backdrop) backdrop.addEventListener('click', () => this.closeFavAuthModal());
+    if (closeBtn) closeBtn.addEventListener('click', () => this.closeFavAuthModal());
+  },
+
   _setupHeroModal() {
     const backdrop = document.getElementById('hero-modal-backdrop');
     const closeBtn = document.getElementById('hero-modal-close');
     if (backdrop) backdrop.addEventListener('click', () => this.closeHeroModal());
     if (closeBtn) closeBtn.addEventListener('click', () => this.closeHeroModal());
     document.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape') this.closeHeroModal();
+      if (e.key === 'Escape') {
+        this.closeHeroModal();
+        this.closeFavAuthModal();
+      }
     });
   },
 
@@ -1292,7 +1388,7 @@ window.App = {
       favBtn.addEventListener('click', async () => {
         if (favBtn.disabled) return;
         if (!Auth.user) {
-          window.location.href = '/api/login?returnTo=/';
+          this.showFavAuthModal();
           return;
         }
         favBtn.disabled = true;
@@ -1376,6 +1472,7 @@ window.App = {
     const indexBtn = document.getElementById('mobile-index-btn');
     const feedbackBtn = document.getElementById('mobile-feedback-btn');
     const projectsBtn = document.getElementById('mobile-projects-btn');
+    const canvasMobileBtn = document.getElementById('mobile-canvas-btn');
     const refreshBtn = document.getElementById('mobile-nav-refresh');
     const loginBtn = document.getElementById('mobile-login-btn');
     const loginPill = document.getElementById('mobile-login-pill');
@@ -1393,6 +1490,13 @@ window.App = {
       feedbackBtn.addEventListener('click', () => {
         Router.navigate('/feedback');
         this._updateMobilePill('feedback');
+      });
+    }
+
+    if (canvasMobileBtn) {
+      canvasMobileBtn.addEventListener('click', () => {
+        Router.navigate('/portfolio');
+        this._updateMobilePill('canvas');
       });
     }
 
@@ -1457,6 +1561,7 @@ window.App = {
       index: document.getElementById('mobile-index-btn'),
       filter: document.getElementById('mobile-filter-btn'),
       feedback: document.getElementById('mobile-feedback-btn'),
+      canvas: document.getElementById('mobile-canvas-btn'),
       projects: document.getElementById('mobile-projects-btn'),
     };
     Object.values(pills).forEach((p) => p && p.classList.remove('mobile-pill-active'));

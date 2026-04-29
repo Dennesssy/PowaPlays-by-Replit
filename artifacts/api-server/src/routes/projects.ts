@@ -8,7 +8,7 @@ const tagsCache: { data: unknown; expires: number } = { data: null, expires: 0 }
 const TAGS_CACHE_TTL = 5 * 60 * 1000;
 
 const projectsCache = new Map<string, { data: unknown; expires: number }>();
-const PROJECTS_CACHE_TTL = 60 * 1000;
+const PROJECTS_CACHE_TTL = 5 * 60 * 1000;
 
 function isInternal(req: Request): boolean {
   return req.isAuthenticated() && (req.user.role === "internal" || req.user.role === "admin");
@@ -114,8 +114,12 @@ router.get("/projects", async (req: Request, res: Response) => {
 
     projectsCache.set(cacheKey, { data: response, expires: Date.now() + PROJECTS_CACHE_TTL });
     if (projectsCache.size > 50) {
-      const first = projectsCache.keys().next().value;
-      if (first) projectsCache.delete(first);
+      let oldestKey: string | undefined;
+      let oldestExpires = Infinity;
+      for (const [k, v] of projectsCache) {
+        if (v.expires < oldestExpires) { oldestExpires = v.expires; oldestKey = k; }
+      }
+      if (oldestKey) projectsCache.delete(oldestKey);
     }
 
     res.json(response);
